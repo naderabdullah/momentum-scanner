@@ -5,7 +5,9 @@
   --foreground: #171717;
 }
 
-@theme inline {
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -24,3 +26,22 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+body { font-family: 'Inter', sans-serif; background: #0f172a; }
+.font-mono { font-family: 'Roboto Mono', monospace; }
+.header-glow { text-shadow: 0 0 8px rgba(34, 211, 238, 0.4), 0 0 20px rgba(34, 211, 238, 0.2); }
+.panel { background-color: rgba(15, 23, 42, 0.8); backdrop-filter: blur(10px); border: 1px solid #1e293b; }
+.btn-glow:hover { box-shadow: 0 0 12px rgba(34, 211, 238, 0.5); }
+.btn-stop-glow:hover { box-shadow: 0 0 12px rgba(244, 63, 94, 0.5); }
+.buy-score.high { background: #166534; color: #a7f3d0; }
+.buy-score.medium { background: #854d0e; color: #fef08a; }
+.buy-score.low { background: #991b1b; color: #fecaca; }
+.alert.critical { background-color: #3f1212; border-color: #ef4444; color: #fca5a5; }
+.alert.warning { background-color: #452c08; border-color: #f59e0b; color: #fcd34d; }
+.alert.info { background-color: #0c2e42; border-color: #0ea5e9; color: #7dd3fc; }
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #1e293b; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
+.loader { border: 4px solid #334155; border-top: 4px solid #0ea5e9; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
