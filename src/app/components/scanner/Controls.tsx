@@ -35,7 +35,7 @@ const Controls: React.FC<ControlsProps> = ({
           disabled={isScanning || (wsConnected !== undefined && !wsConnected)} 
           className="px-4 py-2 bg-cyan-600 text-white font-semibold rounded-lg shadow-md hover:bg-cyan-700 transition-all duration-300 btn-glow disabled:bg-slate-500 disabled:cursor-not-allowed"
         >
-          {isScanning ? '🔴 Live Streaming...' : '▶️ Start Live Stream'}
+          {isScanning ? '🔴 Scanning...' : '▶️ Start Live Scan'}
         </button>
         
         <button 
@@ -43,7 +43,7 @@ const Controls: React.FC<ControlsProps> = ({
           disabled={!isScanning} 
           className="px-4 py-2 bg-rose-600 text-white font-semibold rounded-lg shadow-md hover:bg-rose-700 transition-all duration-300 btn-stop-glow disabled:bg-slate-500 disabled:cursor-not-allowed"
         >
-          ⏹️ Stop Stream
+          ⏹️ Stop Scan
         </button>
         
         <button 
