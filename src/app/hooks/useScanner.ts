@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Stock, Alert, Level2Data, Pattern, ScanCriteria } from '../lib/types';
-import { loadAlertsFromDB, addAlertToDB, cleanupOldAlerts } from '../lib/db';
+// --- MODIFIED: Import the new DB clearing function ---
+import { loadAlertsFromDB, addAlertToDB, cleanupOldAlerts, clearAllAlertsFromDB } from '../lib/db';
 import { parseHumanFloat } from '../lib/utils';
 import { fetchLevel2Data } from '../lib/polygon';
 
@@ -24,8 +25,15 @@ const useScanner = () => {
     addAlertToDB(newAlert);
   }, []);
 
+  // --- MODIFIED: Update clearAlerts to be async and call the DB function ---
+  const clearAlerts = async () => {
+    setAlerts([]); // Clear state for immediate UI update
+    await clearAllAlertsFromDB(); // Permanently clear from IndexedDB
+  };
+  const clearLevel2Data = () => setLevel2Data([]);
+  const clearPatterns = () => setPatterns({});
+
   const runScan = useCallback(async () => {
-    // This function is now just a trigger, actual logic is in the API route
     setApiCalls(prev => prev + 1);
 
     const criteria: ScanCriteria = {
@@ -49,11 +57,21 @@ const useScanner = () => {
       }
 
       const data = await response.json();
-      setStocks(data.stocks || []);
+      
+      const stockMap = new Map<string, Stock>();
+      stocks.forEach(stock => stockMap.set(stock.ticker, stock));
+      (data.stocks || []).forEach((stock: Stock) => stockMap.set(stock.ticker, stock));
+
+      const combinedStocks = Array.from(stockMap.values());
+      const sortedStocks = combinedStocks.sort((a, b) => b.buy_score - a.buy_score);
+      const finalStocks = sortedStocks.slice(0, 20);
+      
+      setStocks(finalStocks);
+
       setLastUpdate(new Date().toLocaleTimeString());
 
       const newPatterns: Pattern = {};
-      (data.stocks || []).forEach((stock: Stock) => {
+      finalStocks.forEach((stock: Stock) => {
         if(Object.keys(stock.patterns).length > 0) {
             newPatterns[stock.ticker] = Object.keys(stock.patterns);
         }
@@ -66,16 +84,16 @@ const useScanner = () => {
 
     } catch (error) {
       addAlert('critical', 'ERROR', error instanceof Error ? error.message : 'An unknown error occurred during scan.');
-      setIsScanning(false); // Stop scanning on error
+      setIsScanning(false);
     }
-  }, [addAlert, maxFloat]);
+  }, [addAlert, maxFloat, stocks]);
 
   const startScanning = useCallback(() => {
     if (isScanning) return;
     setIsScanning(true);
     addAlert('info', 'SYSTEM', 'Scanner started.');
     runScan();
-    scanIntervalRef.current = setInterval(runScan, 5 * 60 * 1000);
+    scanIntervalRef.current = setInterval(runScan, 30 * 1000); 
   }, [isScanning, runScan, addAlert]);
 
   const stopScanning = useCallback(() => {
@@ -109,11 +127,12 @@ const useScanner = () => {
        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
        const estTime = new Date(utc + (3600000 * estOffset));
        const day = estTime.getDay(), timeInMinutes = estTime.getHours() * 60 + estTime.getMinutes();
+       
        let status = '🔴 CLOSED', color = 'text-red-400';
        if (day > 0 && day < 6) {
-           if (timeInMinutes >= 240 && timeInMinutes < 570) { status = '🟡 PRE-MARKET'; color = 'text-amber-400'; }
+           if (timeInMinutes >= 240 && timeInMinutes < 570) { status = '🟠 PRE-MARKET'; color = 'text-amber-400'; }
            else if (timeInMinutes >= 570 && timeInMinutes < 960) { status = '🟢 OPEN'; color = 'text-green-400'; }
-           else if (timeInMinutes >= 960 && timeInMinutes < 1200) { status = '🟡 AFTER-HOURS'; color = 'text-amber-400'; }
+           else if (timeInMinutes >= 960 && timeInMinutes < 1200) { status = '🟠 AFTER-HOURS'; color = 'text-amber-400'; }
        }
        setMarketStatus({ status, color });
     }
@@ -125,13 +144,13 @@ const useScanner = () => {
   useEffect(() => {
     const updateL2 = async () => {
         if(stocks.length > 0) {
-            const top3 = stocks.slice(0,3).map(s => s.ticker);
-            const l2 = await fetchLevel2Data(top3);
+            const top20 = stocks.slice(0,20).map(s => s.ticker);
+            const l2 = await fetchLevel2Data(top20);
             setLevel2Data(l2);
         }
     }
     if(isScanning) {
-       const l2Interval = setInterval(updateL2, 15000); // L2 updates every 15s
+       const l2Interval = setInterval(updateL2, 1000); 
        return () => clearInterval(l2Interval);
     }
   }, [isScanning, stocks]);
@@ -152,6 +171,9 @@ const useScanner = () => {
     startScanning,
     stopScanning,
     addAlert,
+    clearAlerts,
+    clearLevel2Data,
+    clearPatterns,
   };
 };
 

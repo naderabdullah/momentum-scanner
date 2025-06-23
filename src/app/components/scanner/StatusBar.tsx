@@ -10,9 +10,12 @@ interface StatusBarProps {
 }
 
 const StatusBar: React.FC<StatusBarProps> = ({ marketStatus, stockCount, apiCalls, catalystCount, lastUpdate }) => {
-  const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString());
+  // --- FIX: Initialize time as null to prevent hydration mismatch ---
+  const [currentTime, setCurrentTime] = useState<string | null>(null);
 
   useEffect(() => {
+    // --- FIX: Set the initial time and start the interval only on the client-side ---
+    setCurrentTime(new Date().toLocaleTimeString());
     const timer = setInterval(() => setCurrentTime(new Date().toLocaleTimeString()), 1000);
     return () => clearInterval(timer);
   }, []);
@@ -20,7 +23,8 @@ const StatusBar: React.FC<StatusBarProps> = ({ marketStatus, stockCount, apiCall
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 p-4 bg-slate-900/50 border-b border-slate-800">
       <div className="panel text-center p-3 rounded-lg"><strong className="block text-slate-400">Market</strong><span className={`text-lg font-bold ${marketStatus.color}`}>{marketStatus.status}</span></div>
-      <div className="panel text-center p-3 rounded-lg"><strong className="block text-slate-400">Time</strong><span className="text-lg font-bold">{currentTime}</span></div>
+      {/* --- FIX: Render a placeholder while waiting for client-side mount --- */}
+      <div className="panel text-center p-3 rounded-lg"><strong className="block text-slate-400">Time</strong><span className="text-lg font-bold">{currentTime ?? '--:--:--'}</span></div>
       <div className="panel text-center p-3 rounded-lg"><strong className="block text-slate-400">Watchlist</strong><span id="stockCount" className="text-lg font-bold">{stockCount}</span></div>
       <div className="panel text-center p-3 rounded-lg"><strong className="block text-slate-400">API Calls</strong><span id="apiCallCount" className="text-lg font-bold">{apiCalls}</span></div>
       <div className="panel text-center p-3 rounded-lg"><strong className="block text-slate-400">Catalysts</strong><span id="catalystCount" className="text-lg font-bold">{catalystCount}</span></div>

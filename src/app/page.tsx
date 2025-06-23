@@ -35,6 +35,10 @@ export default function ScannerPage() {
           alerts={scanner.alerts}
           level2Data={scanner.level2Data}
           patterns={scanner.patterns}
+          // --- NEW: Pass clear functions as props ---
+          clearAlerts={scanner.clearAlerts}
+          clearLevel2Data={scanner.clearLevel2Data}
+          clearPatterns={scanner.clearPatterns}
         />
       </main>
     </div>

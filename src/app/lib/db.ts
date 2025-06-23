@@ -52,6 +52,15 @@ export const loadAlertsFromDB = async (): Promise<Alert[]> => {
   return [];
 };
 
+// --- NEW: Function to clear all alerts from IndexedDB ---
+export const clearAllAlertsFromDB = async () => {
+    const db = getDbInstance();
+    if (db) {
+        const dbInstance = await db;
+        await dbInstance.clear(ALERT_STORE_NAME);
+    }
+};
+
 export const cleanupOldAlerts = async () => {
     const db = getDbInstance();
     if (!db) return;

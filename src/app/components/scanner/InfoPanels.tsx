@@ -6,13 +6,21 @@ interface InfoPanelsProps {
   alerts: Alert[];
   level2Data: Level2Data[];
   patterns: Pattern;
+  // --- NEW: Define clear functions in props interface ---
+  clearAlerts: () => void;
+  clearLevel2Data: () => void;
+  clearPatterns: () => void;
 }
 
-const InfoPanels: React.FC<InfoPanelsProps> = ({ alerts, level2Data, patterns }) => {
+const InfoPanels: React.FC<InfoPanelsProps> = ({ alerts, level2Data, patterns, clearAlerts, clearLevel2Data, clearPatterns }) => {
   return (
     <div className="h-[calc(100vh-350px)] min-h-[400px] flex flex-col gap-4">
       <div className="panel rounded-lg p-4 flex flex-col flex-1 min-h-0">
-        <h2 className="text-xl font-bold text-rose-400 mb-4 flex-shrink-0">🚨 Real-Time Alerts</h2>
+        {/* --- NEW: Header container for title and button --- */}
+        <div className="flex justify-between items-center mb-4 flex-shrink-0">
+          <h2 className="text-xl font-bold text-rose-400">🚨 Real-Time Alerts</h2>
+          <button onClick={clearAlerts} className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded transition-colors">Clear</button>
+        </div>
         <div className="space-y-2 overflow-y-auto flex-grow">
           {alerts.length === 0 ? <p className="text-center pt-8 text-slate-500">No alerts yet.</p> :
             alerts.map(alert => (
@@ -25,7 +33,11 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({ alerts, level2Data, patterns })
         </div>
       </div>
       <div className="panel rounded-lg p-4 flex flex-col flex-1 min-h-0">
-        <h2 className="text-xl font-bold text-amber-400 mb-4 flex-shrink-0">📊 Order Flow</h2>
+        {/* --- NEW: Header container for title and button --- */}
+        <div className="flex justify-between items-center mb-4 flex-shrink-0">
+          <h2 className="text-xl font-bold text-amber-400">📊 Order Flow</h2>
+          <button onClick={clearLevel2Data} className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded transition-colors">Clear</button>
+        </div>
         <div className="space-y-3 font-mono text-sm overflow-y-auto flex-grow">
           {level2Data.length === 0 ? <p className="text-center pt-8 text-slate-500">Level 2 data will appear here.</p> :
             level2Data.map(q => {
@@ -45,7 +57,11 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({ alerts, level2Data, patterns })
         </div>
       </div>
        <div className="panel rounded-lg p-4 flex flex-col flex-1 min-h-0">
-        <h2 className="text-xl font-bold text-indigo-400 mb-4 flex-shrink-0">🎯 Pattern Recognition</h2>
+        {/* --- NEW: Header container for title and button --- */}
+        <div className="flex justify-between items-center mb-4 flex-shrink-0">
+          <h2 className="text-xl font-bold text-indigo-400">🎯 Pattern Recognition</h2>
+          <button onClick={clearPatterns} className="text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 px-2 py-1 rounded transition-colors">Clear</button>
+        </div>
         <div className="space-y-2 overflow-y-auto flex-grow">
            {Object.keys(patterns).length === 0 ? <p className="text-center pt-8 text-slate-500">Pattern signals will appear here.</p> :
              Object.entries(patterns).map(([ticker, patternList]) => (
