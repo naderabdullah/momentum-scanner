@@ -20,8 +20,9 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading }) => {
         </tr>
       );
     }
+    // Updated message for when no stocks are returned
     if (stocks.length === 0) {
-      return <tr><td colSpan={7} className="text-center py-16 text-slate-500">No stocks match all criteria.</td></tr>;
+      return <tr><td colSpan={7} className="text-center py-16 text-slate-500">No high-momentum stocks found. Try again later.</td></tr>;
     }
     return stocks.map(stock => {
       const changeClass = stock.todaysChange > 0 ? 'text-green-400' : 'text-red-400';

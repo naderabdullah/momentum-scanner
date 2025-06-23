@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Stock, Alert, Level2Data, Pattern, ScanCriteria } from '../lib/types';
-// --- MODIFIED: Import the new DB clearing function ---
 import { loadAlertsFromDB, addAlertToDB, cleanupOldAlerts, clearAllAlertsFromDB } from '../lib/db';
 import { parseHumanFloat } from '../lib/utils';
 import { fetchLevel2Data } from '../lib/polygon';
@@ -25,10 +24,9 @@ const useScanner = () => {
     addAlertToDB(newAlert);
   }, []);
 
-  // --- MODIFIED: Update clearAlerts to be async and call the DB function ---
   const clearAlerts = async () => {
-    setAlerts([]); // Clear state for immediate UI update
-    await clearAllAlertsFromDB(); // Permanently clear from IndexedDB
+    setAlerts([]);
+    await clearAllAlertsFromDB();
   };
   const clearLevel2Data = () => setLevel2Data([]);
   const clearPatterns = () => setPatterns({});
@@ -39,9 +37,11 @@ const useScanner = () => {
     const criteria: ScanCriteria = {
       maxFloat: parseHumanFloat(maxFloat),
       minChange: 10,
-      minPrice: 0.5,
+      minPrice: 0.01,
       maxPrice: 20,
       minRelVol: 5,
+      // --- NEW: Sending market status to the API ---
+      marketStatus: marketStatus.status,
     };
 
     try {
@@ -86,7 +86,7 @@ const useScanner = () => {
       addAlert('critical', 'ERROR', error instanceof Error ? error.message : 'An unknown error occurred during scan.');
       setIsScanning(false);
     }
-  }, [addAlert, maxFloat, stocks]);
+  }, [addAlert, maxFloat, stocks, marketStatus.status]); // Added marketStatus.status to dependency array
 
   const startScanning = useCallback(() => {
     if (isScanning) return;
@@ -154,7 +154,6 @@ const useScanner = () => {
        return () => clearInterval(l2Interval);
     }
   }, [isScanning, stocks]);
-
 
   return {
     isScanning,

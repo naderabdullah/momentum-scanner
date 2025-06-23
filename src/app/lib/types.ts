@@ -38,4 +38,6 @@ export interface ScanCriteria {
   minPrice: number;
   maxPrice: number;
   minRelVol: number;
+  // --- NEW: Added market status to criteria ---
+  marketStatus?: string;
 }
