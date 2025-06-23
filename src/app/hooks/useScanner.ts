@@ -143,11 +143,16 @@ const useScanner = () => {
 
   useEffect(() => {
     const updateL2 = async () => {
-        if(stocks.length > 0) {
-            const top20 = stocks.slice(0,20).map(s => s.ticker);
-            const l2 = await fetchLevel2Data(top20);
-            setLevel2Data(l2);
-        }
+      if(stocks.length > 0) {
+        const top20 = stocks.slice(0,20).map(s => s.ticker);
+        const response = await fetch('/api/level2', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tickers: top20 })
+        });
+        const l2 = await response.json();
+        setLevel2Data(l2);
+      }
     }
     if(isScanning) {
        const l2Interval = setInterval(updateL2, 1000); 

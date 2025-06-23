@@ -7,11 +7,20 @@ const API_KEY = process.env.POLYGON_API_KEY;
 const apiFetch = async (url: string) => {
   const separator = url.includes('?') ? '&' : '?';
   const response = await fetch(`https://api.polygon.io${url}${separator}apiKey=${API_KEY}`);
+  
+  // Add debugging
+  const responseText = await response.text();
+  console.log('Polygon response:', responseText.substring(0, 100));
+  
   if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.error || `Polygon API Error: ${response.status}`);
+    throw new Error(`Polygon API Error: ${response.status} - ${responseText}`);
   }
-  return response.json();
+  
+  try {
+    return JSON.parse(responseText);
+  } catch (e) {
+    throw new Error(`Invalid JSON response from Polygon: ${responseText.substring(0, 100)}`);
+  }
 };
 
 /**
