@@ -1,3 +1,4 @@
+// src/app/page.tsx
 "use client";
 
 import React from 'react';
@@ -6,10 +7,10 @@ import Controls from './components/scanner/Controls';
 import StatusBar from './components/scanner/StatusBar';
 import Watchlist from './components/scanner/Watchlist';
 import InfoPanels from './components/scanner/InfoPanels';
-import useScanner from './hooks/useScanner';
+import useWebSocketScanner from './hooks/useWebSocketScanner';
 
 export default function ScannerPage() {
-  const scanner = useScanner();
+  const scanner = useWebSocketScanner();
 
   return (
     <div className="text-slate-300">
@@ -21,6 +22,7 @@ export default function ScannerPage() {
         maxFloat={scanner.maxFloat}
         setMaxFloat={scanner.setMaxFloat}
         testAlert={scanner.addAlert}
+        wsConnected={scanner.wsConnected}
       />
       <StatusBar
         marketStatus={scanner.marketStatus}
@@ -28,14 +30,17 @@ export default function ScannerPage() {
         apiCalls={scanner.apiCalls}
         catalystCount={scanner.catalystCount}
         lastUpdate={scanner.lastUpdate}
+        wsConnected={scanner.wsConnected}
       />
       <main className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
-        <Watchlist stocks={scanner.stocks} isLoading={scanner.isScanning && scanner.stocks.length === 0} />
+        <Watchlist 
+          stocks={scanner.stocks} 
+          isLoading={scanner.isScanning && scanner.stocks.length === 0 && !scanner.wsConnected} 
+        />
         <InfoPanels
           alerts={scanner.alerts}
           level2Data={scanner.level2Data}
           patterns={scanner.patterns}
-          // --- NEW: Pass clear functions as props ---
           clearAlerts={scanner.clearAlerts}
           clearLevel2Data={scanner.clearLevel2Data}
           clearPatterns={scanner.clearPatterns}
