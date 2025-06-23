@@ -1,7 +1,7 @@
 // lib/polygon.ts
 import { Level2Data } from './types';
 
-const API_KEY = process.env.POLYGON_API_KEY;
+const API_KEY = process.env.NEXT_PUBLIC_POLYGON_API_KEY;
 
 // Helper function for fetching data from Polygon API
 const apiFetch = async (url: string) => {
