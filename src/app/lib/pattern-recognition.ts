@@ -65,34 +65,32 @@ export class AdvancedPatternRecognizer implements PatternRecognizer {
   detectBreakout(candles: CandlestickData[]): DetectedPattern | null {
     if (candles.length < 30) return null;
     
-    const recent = candles.slice(-30);
-    const consolidation = recent.slice(0, -5);
-    const breakoutCandles = recent.slice(-5);
+    const consolidationPeriod = candles.slice(-20, -5);
+    const breakoutCandles = candles.slice(-5);
     
-    // Check for consolidation period
-    const range = this.calculatePriceRange(consolidation);
-    const rangePercent = (range.high - range.low) / range.low * 100;
+    if (consolidationPeriod.length === 0 || breakoutCandles.length === 0) return null;
     
-    if (rangePercent > 8) return null; // Too much volatility, not consolidation
+    const { high, low } = this.calculatePriceRange(consolidationPeriod);
+    const rangePercent = ((high - low) / low) * 100;
     
-    // Check for breakout
-    const breakoutHigh = Math.max(...breakoutCandles.map(c => c.high));
-    const breakoutLow = Math.min(...breakoutCandles.map(c => c.low));
-    const avgVolume = consolidation.reduce((sum, c) => sum + c.volume, 0) / consolidation.length;
+    // Look for tight consolidation (less than 5% range)
+    if (rangePercent > 5) return null;
+    
+    const latestPrice = breakoutCandles[breakoutCandles.length - 1]?.close;
+    if (!latestPrice) return null;
+    
+    const avgVolume = consolidationPeriod.reduce((sum, c) => sum + c.volume, 0) / consolidationPeriod.length;
     const breakoutVolume = breakoutCandles.reduce((sum, c) => sum + c.volume, 0) / breakoutCandles.length;
+    const volumeRatio = breakoutVolume / avgVolume;
     
-    const upwardBreakout = breakoutHigh > range.high * 1.02; // 2% above resistance
-    const downwardBreakout = breakoutLow < range.low * 0.98; // 2% below support
-    const volumeSpike = breakoutVolume > avgVolume * 1.5; // 50% volume increase
-    
-    if ((upwardBreakout || downwardBreakout) && volumeSpike) {
-      const direction = upwardBreakout ? 'Upward' : 'Downward';
-      const confidence = this.calculateBreakoutConfidence(rangePercent, breakoutVolume / avgVolume);
+    if ((latestPrice > high || latestPrice < low) && volumeRatio > 1.5) {
+      const direction = latestPrice > high ? 'Upward' : 'Downward';
+      const confidence = this.calculateBreakoutConfidence(rangePercent, volumeRatio);
       
       return {
         name: `${direction} Breakout`,
         confidence,
-        timeframe: '5m',
+        timeframe: '15m',
         detected_at: Date.now(),
         description: `${direction} breakout from consolidation with volume confirmation`
       };
@@ -107,17 +105,18 @@ export class AdvancedPatternRecognizer implements PatternRecognizer {
     const lows = this.findLocalMinima(candles);
     if (lows.length < 2) return null;
     
-    // Look for two similar lows with a peak between them
     for (let i = 0; i < lows.length - 1; i++) {
       const firstLow = lows[i];
       const secondLow = lows[i + 1];
       
-      // Check if lows are similar (within 2%)
+      if (!firstLow || !secondLow) continue;
+      
       const lowDiff = Math.abs(firstLow.low - secondLow.low) / firstLow.low * 100;
       if (lowDiff > 2) continue;
       
-      // Check for peak between lows
       const betweenCandles = candles.slice(firstLow.index, secondLow.index);
+      if (betweenCandles.length === 0) continue;
+      
       const peak = Math.max(...betweenCandles.map(c => c.high));
       const neckline = Math.max(firstLow.low, secondLow.low) * 1.03; // 3% above lows
       
@@ -146,10 +145,14 @@ export class AdvancedPatternRecognizer implements PatternRecognizer {
       const firstHigh = highs[i];
       const secondHigh = highs[i + 1];
       
+      if (!firstHigh || !secondHigh) continue;
+      
       const highDiff = Math.abs(firstHigh.high - secondHigh.high) / firstHigh.high * 100;
       if (highDiff > 2) continue;
       
       const betweenCandles = candles.slice(firstHigh.index, secondHigh.index);
+      if (betweenCandles.length === 0) continue;
+      
       const trough = Math.min(...betweenCandles.map(c => c.low));
       const neckline = Math.min(firstHigh.high, secondHigh.high) * 0.97; // 3% below highs
       
@@ -202,27 +205,33 @@ export class AdvancedPatternRecognizer implements PatternRecognizer {
 
   // Helper methods
   private hasStrongUpwardMove(candles: CandlestickData[]): boolean {
-    const start = candles[0].close;
-    const end = candles[candles.length - 1].close;
+    if (candles.length === 0) return false;
+    const start = candles[0]?.close;
+    const end = candles[candles.length - 1]?.close;
+    if (!start || !end) return false;
     const change = (end - start) / start * 100;
     return change > 5; // 5% minimum upward move
   }
 
   private hasStrongDownwardMove(candles: CandlestickData[]): boolean {
-    const start = candles[0].close;
-    const end = candles[candles.length - 1].close;
+    if (candles.length === 0) return false;
+    const start = candles[0]?.close;
+    const end = candles[candles.length - 1]?.close;
+    if (!start || !end) return false;
     const change = (end - start) / start * 100;
     return change < -5; // 5% minimum downward move
   }
 
   private hasSidewaysConsolidation(candles: CandlestickData[]): boolean {
+    if (candles.length === 0) return false;
     const high = Math.max(...candles.map(c => c.high));
     const low = Math.min(...candles.map(c => c.low));
     const range = (high - low) / low * 100;
     return range < 3; // Less than 3% range
   }
 
-  private hasVolumeConfirmation(candles: CandlestickData[], pattern: string): boolean {
+  private hasVolumeConfirmation(candles: CandlestickData[], patternType: string): boolean {
+    if (candles.length === 0) return false;
     const avgVolume = candles.reduce((sum, c) => sum + c.volume, 0) / candles.length;
     const recentVolume = candles.slice(-5).reduce((sum, c) => sum + c.volume, 0) / 5;
     return recentVolume > avgVolume * 1.2; // 20% above average
@@ -266,6 +275,8 @@ export class AdvancedPatternRecognizer implements PatternRecognizer {
       const after1 = candles[i + 1];
       const after2 = candles[i + 2];
       
+      if (!current || !before1 || !before2 || !after1 || !after2) continue;
+      
       if (current.low < before1.low && current.low < before2.low && 
           current.low < after1.low && current.low < after2.low) {
         minima.push({ low: current.low, index: i });
@@ -284,6 +295,8 @@ export class AdvancedPatternRecognizer implements PatternRecognizer {
       const before2 = candles[i - 2];
       const after1 = candles[i + 1];
       const after2 = candles[i + 2];
+      
+      if (!current || !before1 || !before2 || !after1 || !after2) continue;
       
       if (current.high > before1.high && current.high > before2.high && 
           current.high > after1.high && current.high > after2.high) {
@@ -305,7 +318,7 @@ export class AdvancedPatternRecognizer implements PatternRecognizer {
     const sumY = values.reduce((a, b) => a + b, 0);
     const sumXY = indices.reduce((sum, x, i) => sum + x * values[i], 0);
     const sumX2 = indices.reduce((sum, x) => sum + x * x, 0);
-    const sumY2 = values.reduce((sum, y) => sum + y * y, 0);
+    // Removed unused sumY2 variable
     
     const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
     const intercept = (sumY - slope * sumX) / n;

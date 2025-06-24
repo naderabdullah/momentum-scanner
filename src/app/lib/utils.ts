@@ -102,6 +102,42 @@ export const checkBuyCriteria = (stock: {
 };
 
 /**
+ * Local storage helpers with error handling
+ */
+export const storage = {
+  get: <T>(key: string, fallback: T): T => {
+    if (typeof window === 'undefined') return fallback;
+    
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : fallback;
+    } catch {
+      return fallback;
+    }
+  },
+  
+  set: (key: string, value: unknown): void => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error('Failed to save to localStorage:', error);
+    }
+  },
+  
+  remove: (key: string): void => {
+    if (typeof window === 'undefined') return;
+    
+    try {
+      localStorage.removeItem(key);
+    } catch (error) {
+      console.error('Failed to remove from localStorage:', error);
+    }
+  }
+};
+
+/**
  * Calculate buy score based on weighted criteria
  */
 export const calculateBuyScore = (stock: {
@@ -110,7 +146,7 @@ export const calculateBuyScore = (stock: {
   float: number;
   price: number;
   hasCatalyst: boolean;
-  patterns?: any[];
+  patterns?: string[];
   volumeSurge?: boolean;
 }): number => {
   let score = 0;
@@ -148,6 +184,29 @@ export const calculateBuyScore = (stock: {
 };
 
 /**
+ * Enhanced buy score calculation with additional parameters
+ */
+export const calculateEnhancedBuyScore = (
+  relVol: number,
+  changePerc: number,
+  price: number,
+  float: number,
+  hasCatalyst: boolean,
+  patterns: string[],
+  volumeSurge: boolean
+): number => {
+  return calculateBuyScore({
+    relVol,
+    todaysChangePerc: changePerc,
+    price,
+    float,
+    hasCatalyst,
+    patterns,
+    volumeSurge
+  });
+};
+
+/**
  * Get color class based on buy score
  */
 export const getBuyScoreColor = (score: number): string => {
@@ -177,96 +236,9 @@ export const validateFloatInput = (input: string): boolean => {
 };
 
 /**
- * Generate unique alert ID
- */
-export const generateAlertId = (): number => {
-  return Date.now() + Math.floor(Math.random() * 1000);
-};
-
-/**
- * Format time for display
- */
-export const formatTime = (timestamp: number): string => {
-  return new Date(timestamp).toLocaleTimeString('en-US', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-};
-
-/**
- * Format date for display
- */
-export const formatDate = (timestamp: number): string => {
-  return new Date(timestamp).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-};
-
-/**
- * Check if market is currently open (EST/EDT)
- */
-export const isMarketOpen = (): boolean => {
-  const now = new Date();
-  const easternTime = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
-  const day = easternTime.getDay();
-  const hours = easternTime.getHours();
-  const minutes = easternTime.getMinutes();
-  
-  // Weekend check
-  if (day === 0 || day === 6) return false;
-  
-  // Market hours: 9:30 AM - 4:00 PM EST/EDT
-  const currentMinutes = hours * 60 + minutes;
-  const marketOpen = 9 * 60 + 30; // 9:30 AM
-  const marketClose = 16 * 60; // 4:00 PM
-  
-  return currentMinutes >= marketOpen && currentMinutes < marketClose;
-};
-
-/**
- * Get market session info
- */
-export const getMarketSession = (): {
-  session: 'pre' | 'regular' | 'after' | 'closed';
-  description: string;
-} => {
-  const now = new Date();
-  const easternTime = new Date(now.toLocaleString("en-US", {timeZone: "America/New_York"}));
-  const day = easternTime.getDay();
-  const hours = easternTime.getHours();
-  const minutes = easternTime.getMinutes();
-  
-  // Weekend check
-  if (day === 0 || day === 6) {
-    return { session: 'closed', description: 'Weekend - Markets Closed' };
-  }
-  
-  const currentMinutes = hours * 60 + minutes;
-  const preMarketStart = 4 * 60; // 4:00 AM
-  const regularStart = 9 * 60 + 30; // 9:30 AM
-  const regularEnd = 16 * 60; // 4:00 PM
-  const afterEnd = 20 * 60; // 8:00 PM
-  
-  if (currentMinutes >= preMarketStart && currentMinutes < regularStart) {
-    return { session: 'pre', description: 'Pre-Market Trading' };
-  } else if (currentMinutes >= regularStart && currentMinutes < regularEnd) {
-    return { session: 'regular', description: 'Regular Trading Hours' };
-  } else if (currentMinutes >= regularEnd && currentMinutes < afterEnd) {
-    return { session: 'after', description: 'After-Hours Trading' };
-  } else {
-    return { session: 'closed', description: 'Markets Closed' };
-  }
-};
-
-/**
  * Debounce function for performance optimization
  */
-export const debounce = <T extends (...args: any[]) => any>(
+export const debounce = <T extends (...args: Parameters<T>) => ReturnType<T>>(
   func: T,
   wait: number
 ): ((...args: Parameters<T>) => void) => {
@@ -281,7 +253,7 @@ export const debounce = <T extends (...args: any[]) => any>(
 /**
  * Throttle function for performance optimization
  */
-export const throttle = <T extends (...args: any[]) => any>(
+export const throttle = <T extends (...args: Parameters<T>) => ReturnType<T>>(
   func: T,
   limit: number
 ): ((...args: Parameters<T>) => void) => {
@@ -337,37 +309,38 @@ export const safeJsonParse = <T>(json: string, fallback: T): T => {
 };
 
 /**
- * Local storage helpers with error handling
+ * Format volume for display
  */
-export const storage = {
-  get: <T>(key: string, fallback: T): T => {
-    if (typeof window === 'undefined') return fallback;
-    
-    try {
-      const item = localStorage.getItem(key);
-      return item ? JSON.parse(item) : fallback;
-    } catch {
-      return fallback;
-    }
-  },
-  
-  set: (key: string, value: any): void => {
-    if (typeof window === 'undefined') return;
-    
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-      console.error('Failed to save to localStorage:', error);
-    }
-  },
-  
-  remove: (key: string): void => {
-    if (typeof window === 'undefined') return;
-    
-    try {
-      localStorage.removeItem(key);
-    } catch (error) {
-      console.error('Failed to remove from localStorage:', error);
-    }
-  }
+export const formatVolume = (volume: number): string => {
+  return formatHumanNumber(volume);
+};
+
+/**
+ * Calculate percentage difference between two values
+ */
+export const calculatePercentDifference = (value1: number, value2: number): number => {
+  if (value2 === 0) return 0;
+  return Math.abs((value1 - value2) / value2) * 100;
+};
+
+/**
+ * Check if a value is within a percentage range of another value
+ */
+export const isWithinRange = (value: number, target: number, tolerancePercent: number): boolean => {
+  const tolerance = target * (tolerancePercent / 100);
+  return Math.abs(value - target) <= tolerance;
+};
+
+/**
+ * Round to specified decimal places
+ */
+export const roundToDecimal = (value: number, decimals: number): number => {
+  return Math.round(value * Math.pow(10, decimals)) / Math.pow(10, decimals);
+};
+
+/**
+ * Clamp value between min and max
+ */
+export const clamp = (value: number, min: number, max: number): number => {
+  return Math.min(Math.max(value, min), max);
 };
