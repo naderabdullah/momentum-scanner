@@ -8,6 +8,7 @@ interface StatusBarProps {
   catalystCount: number;
   lastUpdate: string;
   wsConnected?: boolean;
+  watchlistSize?: number;
 }
 
 const StatusBar: React.FC<StatusBarProps> = ({ 
@@ -16,7 +17,8 @@ const StatusBar: React.FC<StatusBarProps> = ({
   apiCalls, 
   catalystCount, 
   lastUpdate,
-  wsConnected 
+  wsConnected,
+  watchlistSize = 0
 }) => {
   const [currentTime, setCurrentTime] = useState<string | null>(null);
 
@@ -27,7 +29,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
   }, []);
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4 p-4 bg-slate-900/50 border-b border-slate-800">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-4 p-4 bg-slate-900/50 border-b border-slate-800">
       <div className="panel text-center p-3 rounded-lg">
         <strong className="block text-slate-400">Market</strong>
         <span className={`text-lg font-bold ${marketStatus.color}`}>{marketStatus.status}</span>
@@ -39,25 +41,30 @@ const StatusBar: React.FC<StatusBarProps> = ({
       </div>
       
       <div className="panel text-center p-3 rounded-lg">
-        <strong className="block text-slate-400">Watchlist</strong>
-        <span id="stockCount" className="text-lg font-bold">{stockCount}</span>
-      </div>
-      
-      <div className="panel text-center p-3 rounded-lg">
         <strong className="block text-slate-400">Connection</strong>
-        <span className={`text-lg font-bold ${wsConnected === false ? 'text-red-400' : wsConnected === true ? 'text-green-400' : 'text-slate-400'}`}>
-          {wsConnected === undefined ? '⚪ N/A' : wsConnected ? '🟢 LIVE' : '🔴 OFF'}
+        <span className={`text-lg font-bold ${wsConnected ? 'text-green-400' : 'text-red-400'}`}>
+          {wsConnected ? '🟢 LIVE' : '🔴 OFF'}
         </span>
       </div>
       
       <div className="panel text-center p-3 rounded-lg">
+        <strong className="block text-slate-400">Scanning</strong>
+        <span className="text-lg font-bold text-purple-400">{watchlistSize}</span>
+      </div>
+      
+      <div className="panel text-center p-3 rounded-lg">
+        <strong className="block text-slate-400">Displayed</strong>
+        <span className="text-lg font-bold">{stockCount}</span>
+      </div>
+      
+      <div className="panel text-center p-3 rounded-lg">
         <strong className="block text-slate-400">Catalysts</strong>
-        <span id="catalystCount" className="text-lg font-bold text-amber-400">{catalystCount}</span>
+        <span className="text-lg font-bold text-amber-400">{catalystCount}</span>
       </div>
       
       <div className="panel text-center p-3 rounded-lg">
         <strong className="block text-slate-400">Last Update</strong>
-        <span id="lastUpdate" className="text-lg font-bold">{lastUpdate}</span>
+        <span className="text-lg font-bold">{lastUpdate}</span>
       </div>
     </div>
   );

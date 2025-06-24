@@ -1,11 +1,11 @@
 // components/scanner/InfoPanels.tsx
 import React from 'react';
-import { Alert, Level2Data, Pattern } from '../../lib/types';
+import { Alert, Level2Data } from '../../lib/types';
 
 interface InfoPanelsProps {
   alerts: Alert[];
   level2Data: Level2Data[];
-  patterns: Pattern;
+  patterns: Record<string, string[]>;
   // --- NEW: Define clear functions in props interface ---
   clearAlerts: () => void;
   clearLevel2Data: () => void;

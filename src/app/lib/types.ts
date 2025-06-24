@@ -1,15 +1,19 @@
-// lib/types.ts
+// src/app/lib/types.ts
 export interface Stock {
   ticker: string;
   price: number;
   todaysChange: number;
   todaysChangePerc: number;
-  day: { v: number };
+  day: {
+    v: number; // volume
+  };
   relVol: number;
   float: number;
   buy_score: number;
   hasCatalyst: boolean;
-  patterns: { [key: string]: boolean };
+  patterns?: {
+    [key: string]: boolean;
+  };
 }
 
 export interface Alert {
@@ -21,15 +25,17 @@ export interface Alert {
 }
 
 export interface Level2Data {
-    ticker: string;
-    bid_price: number;
-    bid_size: number;
-    ask_price: number;
-    ask_size: number;
+  ticker: string;
+  bid_price: number;
+  bid_size: number;
+  ask_price: number;
+  ask_size: number;
 }
 
-export type Pattern = {
-    [ticker: string]: string[];
+export interface Pattern {
+  [ticker: string]: {
+    [patternName: string]: boolean;
+  };
 }
 
 export interface ScanCriteria {
@@ -38,6 +44,53 @@ export interface ScanCriteria {
   minPrice: number;
   maxPrice: number;
   minRelVol: number;
-  // --- NEW: Added market status to criteria ---
-  marketStatus?: string;
+}
+
+// Polygon-specific types
+export interface PolygonTrade {
+  ev: 'T';
+  sym: string;
+  i: string;
+  x: number;
+  p: number;
+  s: number;
+  c?: number[];
+  t: number;
+  q?: number;
+  z?: number;
+}
+
+export interface PolygonQuote {
+  ev: 'Q';
+  sym: string;
+  bx: number;
+  bp: number;
+  bs: number;
+  ax: number;
+  ap: number;
+  as: number;
+  t: number;
+  q?: number;
+  z?: number;
+}
+
+export interface PolygonAggregate {
+  ev: 'AM' | 'A';
+  sym: string;
+  v: number;
+  av: number;
+  op?: number;
+  vw: number;
+  o: number;
+  c: number;
+  h: number;
+  l: number;
+  s: number;
+  e: number;
+}
+
+export interface PolygonStatus {
+  ev: 'status';
+  status: 'connected' | 'auth_success' | 'auth_failed' | 'success' | 'error';
+  message: string;
 }

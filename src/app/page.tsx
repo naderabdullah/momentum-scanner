@@ -7,10 +7,10 @@ import Controls from './components/scanner/Controls';
 import StatusBar from './components/scanner/StatusBar';
 import Watchlist from './components/scanner/Watchlist';
 import InfoPanels from './components/scanner/InfoPanels';
-import useWebSocketScanner from './hooks/useWebSocketScanner';
+import usePolygonScanner from './hooks/usePolygonScanner';
 
 export default function ScannerPage() {
-  const scanner = useWebSocketScanner();
+  const scanner = usePolygonScanner();
 
   return (
     <div className="text-slate-300">
