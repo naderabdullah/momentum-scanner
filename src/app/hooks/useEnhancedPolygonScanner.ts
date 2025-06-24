@@ -133,7 +133,7 @@ const useEnhancedPolygonScanner = () => {
 
   const updateDisplayedStocks = useCallback(() => {
     const stockArray = Array.from(stockDataMap.current.values())
-      .filter(stock => stock.buy_score > 50)
+      //.filter(stock => stock.buy_score > 50)
       .sort((a, b) => b.buy_score - a.buy_score)
       .slice(0, 50);
     setStocks(stockArray);

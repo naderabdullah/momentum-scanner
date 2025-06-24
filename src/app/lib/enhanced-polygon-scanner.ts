@@ -537,7 +537,7 @@ export class EnhancedPolygonScanner {
     this.marketMetrics.forEach((metrics, ticker) => {
       const buyScore = this.calculateBuyScore(metrics);
       
-      if (buyScore > 50) { // Only include stocks with decent scores
+      //if (buyScore > 50) { // Only include stocks with decent scores
         const stock: Stock = {
           ticker,
           price: metrics.price,
@@ -558,7 +558,7 @@ export class EnhancedPolygonScanner {
           volumeSurge: metrics.volumeRatio > 5
         };
         stocks.push(stock);
-      }
+      //}
     });
 
     // Sort by buy score
