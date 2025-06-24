@@ -1,6 +1,5 @@
 // src/app/components/scanner/Controls.tsx
 import React, { useState } from 'react';
-import { UserPlan } from '../../lib/types';
 
 interface ControlsProps {
   isScanning: boolean;
@@ -10,8 +9,6 @@ interface ControlsProps {
   setMaxFloat: (value: string) => void;
   testAlert: () => void;
   wsConnected: boolean;
-  userPlan?: UserPlan;
-  upgradePlan?: () => void;
 }
 
 const Controls: React.FC<ControlsProps> = ({
@@ -21,9 +18,7 @@ const Controls: React.FC<ControlsProps> = ({
   maxFloat,
   setMaxFloat,
   testAlert,
-  wsConnected,
-  userPlan,
-  upgradePlan
+  wsConnected
 }) => {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [tempMaxFloat, setTempMaxFloat] = useState(maxFloat);
@@ -52,80 +47,47 @@ const Controls: React.FC<ControlsProps> = ({
               {!isScanning ? (
                 <button
                   onClick={startScan}
-                  disabled={!wsConnected}
-                  className="px-6 py-2 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 disabled:from-slate-600 disabled:to-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all duration-200 shadow-lg hover:shadow-green-500/25"
+                  className="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold rounded-lg transition-all duration-200 shadow-lg hover:shadow-green-500/25"
                 >
-                  🚀 START SCAN
+                  🚀 START SCANNING
                 </button>
               ) : (
                 <button
                   onClick={stopScan}
-                  className="px-6 py-2 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white font-bold rounded-lg transition-all duration-200 shadow-lg hover:shadow-red-500/25"
+                  className="px-6 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold rounded-lg transition-all duration-200 shadow-lg hover:shadow-red-500/25"
                 >
-                  ⏹️ STOP SCAN
+                  ⏹️ STOP SCANNING
                 </button>
               )}
-              
-              <div className={`text-sm font-mono font-bold ${connectionStatus.color}`}>
+            </div>
+
+            {/* Max Float Input */}
+            <div className="flex items-center gap-2">
+              <label className="text-slate-400 text-sm font-medium">Max Float:</label>
+              <input
+                type="text"
+                value={tempMaxFloat}
+                onChange={(e) => handleFloatChange(e.target.value)}
+                className="bg-slate-800 border border-slate-700 text-white px-3 py-1 rounded-lg text-sm w-20 focus:outline-none focus:border-cyan-500"
+                placeholder="20M"
+              />
+            </div>
+          </div>
+
+          {/* Right Side: Status & Settings */}
+          <div className="flex items-center gap-4">
+            {/* Connection Status */}
+            <div className="flex items-center gap-2">
+              <div className={`text-sm font-medium ${connectionStatus.color}`}>
                 {connectionStatus.text}
               </div>
             </div>
 
-            {/* Real-time indicator */}
-            {isScanning && (
-              <div className="flex items-center gap-2 text-green-400">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-sm font-medium">LIVE FEED</span>
-              </div>
-            )}
-          </div>
-
-          {/* Center: Quick Settings */}
-          <div className="flex items-center gap-4">
+            {/* Plan Status - Always Advanced */}
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-slate-400">Max Float:</label>
-              <select
-                value={tempMaxFloat}
-                onChange={(e) => handleFloatChange(e.target.value)}
-                className="bg-slate-700 border border-slate-600 rounded-lg px-3 py-1 text-sm font-mono focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-              >
-                <option value="5M">5M</option>
-                <option value="10M">10M</option>
-                <option value="20M">20M ⭐</option>
-                <option value="50M">50M</option>
-                <option value="100M">100M</option>
-                <option value="500M">500M</option>
-              </select>
-            </div>
-
-            <button
-              onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-              className="text-sm bg-slate-700 hover:bg-slate-600 text-slate-300 px-3 py-1 rounded-lg transition-colors"
-            >
-              ⚙️ Settings
-            </button>
-          </div>
-
-          {/* Right Side: Plan & Actions */}
-          <div className="flex items-center gap-4">
-            {/* Plan Badge */}
-            <div className="flex items-center gap-2">
-              <div className={`px-3 py-1 rounded-full text-xs font-bold ${
-                userPlan?.level === 'advanced' 
-                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white'
-                  : 'bg-slate-700 text-slate-300'
-              }`}>
-                {userPlan?.level?.toUpperCase() || 'BASIC'} PLAN
+              <div className="px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold rounded-full">
+                ADVANCED PLAN
               </div>
-              
-              {userPlan?.level !== 'advanced' && upgradePlan && (
-                <button
-                  onClick={upgradePlan}
-                  className="px-3 py-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-xs font-bold rounded-full transition-all duration-200"
-                >
-                  🚀 UPGRADE
-                </button>
-              )}
             </div>
 
             <button
@@ -164,33 +126,25 @@ const Controls: React.FC<ControlsProps> = ({
                 </div>
               </div>
 
-              {/* Feature Status */}
+              {/* Feature Status - All Enabled */}
               <div className="space-y-2">
                 <h4 className="text-sm font-bold text-indigo-400">🎯 Features</h4>
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between">
                     <span className="text-slate-400">Level 2 Data:</span>
-                    <span className={userPlan?.features.level2Data ? 'text-green-400' : 'text-red-400'}>
-                      {userPlan?.features.level2Data ? '✓ ON' : '✗ OFF'}
-                    </span>
+                    <span className="text-green-400">✓ ON</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Pattern Recognition:</span>
-                    <span className={userPlan?.features.patternRecognition ? 'text-green-400' : 'text-red-400'}>
-                      {userPlan?.features.patternRecognition ? '✓ ON' : '✗ OFF'}
-                    </span>
+                    <span className="text-green-400">✓ ON</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Volume Surge:</span>
-                    <span className={userPlan?.features.volumeSurgeDetection ? 'text-green-400' : 'text-amber-400'}>
-                      {userPlan?.features.volumeSurgeDetection ? '✓ ON' : '~ BASIC'}
-                    </span>
+                    <span className="text-green-400">✓ ON</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400">Order Flow:</span>
-                    <span className={userPlan?.features.orderFlowAnalysis ? 'text-green-400' : 'text-red-400'}>
-                      {userPlan?.features.orderFlowAnalysis ? '✓ ON' : '✗ OFF'}
-                    </span>
+                    <span className="text-green-400">✓ ON</span>
                   </div>
                 </div>
               </div>
@@ -229,76 +183,26 @@ const Controls: React.FC<ControlsProps> = ({
                   <div className="flex justify-between">
                     <span className="text-slate-400">WebSocket:</span>
                     <span className={wsConnected ? 'text-green-400' : 'text-red-400'}>
-                      {wsConnected ? '🟢 LIVE' : '🔴 DOWN'}
+                      {wsConnected ? '✓ CONNECTED' : '✗ DISCONNECTED'}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Scan Mode:</span>
-                    <span className="text-blue-400">REAL-TIME</span>
+                    <span className="text-slate-400">Real-time Data:</span>
+                    <span className="text-green-400">✓ ACTIVE</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Update Rate:</span>
-                    <span className="text-blue-400">15s</span>
+                    <span className="text-slate-400">Pattern Detection:</span>
+                    <span className="text-green-400">✓ RUNNING</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Data Source:</span>
-                    <span className="text-blue-400">POLYGON</span>
+                    <span className="text-slate-400">Volume Analysis:</span>
+                    <span className="text-green-400">✓ ACTIVE</span>
                   </div>
                 </div>
               </div>
             </div>
-
-            {/* Advanced Feature Callouts */}
-            {userPlan?.level !== 'advanced' && (
-              <div className="mt-4 p-3 bg-gradient-to-r from-purple-900/30 to-pink-900/30 border border-purple-500/30 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h5 className="text-sm font-bold text-purple-400">🚀 Unlock Advanced Features</h5>
-                    <p className="text-xs text-slate-300 mt-1">
-                      Get Level 2 data, AI pattern recognition, order flow analysis, and real-time news
-                    </p>
-                  </div>
-                  {upgradePlan && (
-                    <button
-                      onClick={upgradePlan}
-                      className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white text-sm font-bold rounded-lg transition-all duration-200"
-                    >
-                      UPGRADE NOW
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         )}
-
-        {/* Quick Stats Bar */}
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-6 text-xs text-slate-400">
-          <div className="flex items-center gap-1">
-            <span>📊</span>
-            <span>Real-time WebSocket feed</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span>🎯</span>
-            <span>Enhanced buy scoring</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span>⚡</span>
-            <span>Volume surge detection</span>
-          </div>
-          {userPlan?.features.patternRecognition && (
-            <div className="flex items-center gap-1">
-              <span>🤖</span>
-              <span>AI pattern recognition</span>
-            </div>
-          )}
-          {userPlan?.features.level2Data && (
-            <div className="flex items-center gap-1">
-              <span>📈</span>
-              <span>Level 2 order flow</span>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

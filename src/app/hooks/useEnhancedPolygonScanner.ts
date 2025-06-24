@@ -1,67 +1,173 @@
 // src/app/hooks/useEnhancedPolygonScanner.ts
-"use client";
-
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Stock, Alert, Level2Data, PatternData, UserPlan, DetectedPattern, VolumeProfile } from '../lib/types';
-import { loadAlertsFromDB, addAlertToDB, cleanupOldAlerts, clearAllAlertsFromDB } from '../lib/db';
-import { parseHumanFloat } from '../lib/utils';
-import { getEnhancedPolygonScanner, EnhancedPolygonScanner } from '../lib/enhanced-polygon-scanner';
+import { Stock, Alert, Level2Data, DetectedPattern, VolumeProfile } from '../lib/types';
+import { EnhancedPolygonScanner, getEnhancedPolygonScanner } from '../lib/enhanced-polygon-scanner';
+
+// Database functions for alerts
+const DB_NAME = 'StockScannerDB';
+const DB_VERSION = 1;
+const ALERT_STORE = 'alerts';
+
+const openDB = (): Promise<IDBDatabase> => {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
+    
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(ALERT_STORE)) {
+        const store = db.createObjectStore(ALERT_STORE, { keyPath: 'id' });
+        store.createIndex('timestamp', 'timestamp', { unique: false });
+        store.createIndex('ticker', 'ticker', { unique: false });
+      }
+    };
+  });
+};
+
+const addAlertToDB = async (alert: Alert): Promise<void> => {
+  try {
+    const db = await openDB();
+    const transaction = db.transaction([ALERT_STORE], 'readwrite');
+    const store = transaction.objectStore(ALERT_STORE);
+    await store.add(alert);
+  } catch (error) {
+    console.warn('Failed to save alert to database:', error);
+  }
+};
+
+const loadAlertsFromDB = async (): Promise<Alert[]> => {
+  try {
+    const db = await openDB();
+    const transaction = db.transaction([ALERT_STORE], 'readonly');
+    const store = transaction.objectStore(ALERT_STORE);
+    const request = store.getAll();
+    
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    console.warn('Failed to load alerts from database:', error);
+    return [];
+  }
+};
+
+const cleanupOldAlerts = async (): Promise<void> => {
+  try {
+    const db = await openDB();
+    const transaction = db.transaction([ALERT_STORE], 'readwrite');
+    const store = transaction.objectStore(ALERT_STORE);
+    const index = store.index('timestamp');
+    
+    const twoDaysAgo = Date.now() - (2 * 24 * 60 * 60 * 1000);
+    const range = IDBKeyRange.upperBound(twoDaysAgo);
+    
+    const request = index.openCursor(range);
+    request.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest).result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+      }
+    };
+  } catch (error) {
+    console.warn('Failed to cleanup old alerts:', error);
+  }
+};
+
+// Utility functions
+const parseHumanFloat = (value: string): number => {
+  const cleanValue = value.replace(/[^\d.]/g, '');
+  const numValue = parseFloat(cleanValue);
+  
+  if (value.toLowerCase().includes('m')) {
+    return numValue * 1000000;
+  } else if (value.toLowerCase().includes('k')) {
+    return numValue * 1000;
+  } else if (value.toLowerCase().includes('b')) {
+    return numValue * 1000000000;
+  }
+  
+  return numValue || 0;
+};
+
+interface MarketStatus {
+  status: string;
+  color: string;
+}
 
 const useEnhancedPolygonScanner = () => {
+  // Core state
   const [isScanning, setIsScanning] = useState(false);
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [level2Data, setLevel2Data] = useState<Level2Data[]>([]);
-  const [patterns, setPatterns] = useState<PatternData>({});
+  const [patterns, setPatterns] = useState<{ [ticker: string]: string[] }>({});
   const [wsConnected, setWsConnected] = useState(false);
-  const [marketStatus, setMarketStatus] = useState({ status: 'INIT...', color: 'text-slate-500' });
-  const [lastUpdate, setLastUpdate] = useState('Never');
-  const [maxFloat, setMaxFloat] = useState('20M'); // Updated default to match user criteria
+  const [marketStatus, setMarketStatus] = useState<MarketStatus>({ status: 'DISCONNECTED', color: 'text-gray-400' });
+  const [lastUpdate, setLastUpdate] = useState<string>('Never');
+  const [maxFloat, setMaxFloat] = useState<string>('20M');
   const [watchlistSize, setWatchlistSize] = useState(0);
-  const [userPlan, setUserPlan] = useState<UserPlan>({
-    level: 'basic',
-    features: {
-      level2Data: false,
-      patternRecognition: false,
-      volumeSurgeDetection: true,
-      orderFlowAnalysis: false,
-      realTimeNews: false,
-      advancedScreening: false,
-      customAlerts: true
-    }
-  });
-  
+
+  // Scanner instance
   const scanner = useRef<EnhancedPolygonScanner | null>(null);
   const stockDataMap = useRef<Map<string, Stock>>(new Map());
   const level2Map = useRef<Map<string, Level2Data>>(new Map());
   const patternMap = useRef<Map<string, DetectedPattern[]>>(new Map());
 
-  // Detect user plan based on environment or settings
-  useEffect(() => {
-    const detectUserPlan = () => {
-      // Check if user has advanced features enabled
-      // This could be based on API key tier, environment variables, or user settings
-      const isAdvanced = process.env.NEXT_PUBLIC_ADVANCED_FEATURES === 'true' || 
-                        process.env.NEXT_PUBLIC_PLAN_LEVEL === 'advanced';
-      
-      if (isAdvanced) {
-        setUserPlan({
-          level: 'advanced',
-          features: {
-            level2Data: true,
-            patternRecognition: true,
-            volumeSurgeDetection: true,
-            orderFlowAnalysis: true,
-            realTimeNews: true,
-            advancedScreening: true,
-            customAlerts: true
-          }
-        });
-      }
+  // Helper functions
+  const addAlert = useCallback((severity: Alert['severity'], ticker: string, message: string) => {
+    const alert: Alert = {
+      id: Date.now() + Math.random(),
+      severity,
+      ticker,
+      message,
+      timestamp: Date.now()
     };
     
-    detectUserPlan();
+    setAlerts(prev => [alert, ...prev].slice(0, 100));
+    addAlertToDB(alert);
   }, []);
+
+  const updateDisplayedStocks = useCallback(() => {
+    const stockArray = Array.from(stockDataMap.current.values())
+      .filter(stock => stock.buy_score > 50)
+      .sort((a, b) => b.buy_score - a.buy_score)
+      .slice(0, 50);
+    setStocks(stockArray);
+  }, []);
+
+  const updateLevel2Display = useCallback(() => {
+    const level2Array = Array.from(level2Map.current.values());
+    setLevel2Data(level2Array);
+  }, []);
+
+  const updatePatternsDisplay = useCallback(() => {
+    const patternsObj: { [ticker: string]: string[] } = {};
+    patternMap.current.forEach((patterns, ticker) => {
+      patternsObj[ticker] = patterns.map(pattern => pattern.name);
+    });
+    setPatterns(patternsObj);
+  }, []);
+
+  const checkAlerts = useCallback((updated: Stock, existing: Stock) => {
+    // High buy score alert
+    if (updated.buy_score > 80 && existing.buy_score <= 80) {
+      addAlert('critical', updated.ticker, `🎯 HIGH BUY SCORE: ${updated.buy_score.toFixed(0)}`);
+    }
+    
+    // Volume surge alert
+    if (updated.relVol > 10 && existing.relVol <= 10) {
+      addAlert('warning', updated.ticker, `📈 VOLUME SURGE: ${updated.relVol.toFixed(1)}x average`);
+    }
+    
+    // Price breakout alert
+    if (Math.abs(updated.todaysChangePerc) > 20 && Math.abs(existing.todaysChangePerc) <= 20) {
+      addAlert('warning', updated.ticker, `🚀 PRICE BREAKOUT: ${updated.todaysChangePerc > 0 ? '+' : ''}${updated.todaysChangePerc.toFixed(1)}%`);
+    }
+  }, [addAlert]);
 
   // Initialize scanner (client-side only)
   useEffect(() => {
@@ -79,8 +185,8 @@ const useEnhancedPolygonScanner = () => {
     }
 
     try {
-      console.log('🚀 Initializing Enhanced Polygon Scanner...');
-      scanner.current = getEnhancedPolygonScanner(apiKey, userPlan);
+      console.log('🚀 Initializing Enhanced Polygon Scanner (All Features Enabled)...');
+      scanner.current = getEnhancedPolygonScanner(apiKey);
       
       // Set up enhanced callbacks
       scanner.current.onStockUpdate = (update: Partial<Stock>) => {
@@ -98,10 +204,8 @@ const useEnhancedPolygonScanner = () => {
       };
 
       scanner.current.onLevel2Update = (data: Level2Data) => {
-        if (userPlan.features.level2Data) {
-          level2Map.current.set(data.ticker, data);
-          updateLevel2Display();
-        }
+        level2Map.current.set(data.ticker, data);
+        updateLevel2Display();
       };
 
       scanner.current.onAlert = (alert: Alert) => {
@@ -112,7 +216,7 @@ const useEnhancedPolygonScanner = () => {
       scanner.current.onConnectionChange = (connected: boolean) => {
         setWsConnected(connected);
         if (connected) {
-          addAlert('info', 'SYSTEM', '🚀 Connected to Enhanced Polygon WebSocket');
+          addAlert('info', 'SYSTEM', '🚀 Connected to Enhanced Polygon WebSocket - All Features Active');
           setMarketStatus({ status: 'CONNECTED', color: 'text-green-400' });
         } else {
           addAlert('warning', 'SYSTEM', '⚠️ Disconnected from Polygon WebSocket');
@@ -136,23 +240,19 @@ const useEnhancedPolygonScanner = () => {
       };
 
       scanner.current.onPatternDetected = (ticker: string, pattern: DetectedPattern) => {
-        if (userPlan.features.patternRecognition) {
-          const existing = patternMap.current.get(ticker) || [];
-          const updated = [...existing, pattern];
-          patternMap.current.set(ticker, updated);
-          updatePatternsDisplay();
-          
-          // High-confidence pattern alert
-          if (pattern.confidence > 80) {
-            addAlert('info', ticker, `🎯 ${pattern.name} detected (${pattern.confidence.toFixed(0)}% confidence)`);
-          }
+        const existing = patternMap.current.get(ticker) || [];
+        const updated = [...existing, pattern];
+        patternMap.current.set(ticker, updated);
+        updatePatternsDisplay();
+        
+        // High-confidence pattern alert
+        if (pattern.confidence > 80) {
+          addAlert('info', ticker, `🎯 ${pattern.name} detected (${pattern.confidence.toFixed(0)}% confidence)`);
         }
       };
 
       scanner.current.onVolumeSurge = (ticker: string, surge: VolumeProfile) => {
-        if (userPlan.features.volumeSurgeDetection) {
-          addAlert('warning', ticker, `📈 Volume surge! ${surge.relativeVolume.toFixed(1)}x average volume`);
-        }
+        addAlert('warning', ticker, `📈 Volume surge! ${surge.relativeVolume.toFixed(1)}x average volume`);
       };
 
       // Connect to WebSocket
@@ -188,204 +288,56 @@ const useEnhancedPolygonScanner = () => {
 
     return () => {
       if (scanner.current) {
-        scanner.current.disconnect();
+        scanner.current.cleanup();
+        scanner.current = null;
       }
     };
-  }, [userPlan]);
+  }, [addAlert, updateDisplayedStocks, updateLevel2Display, updatePatternsDisplay, checkAlerts]);
 
-  // Update displayed stocks with enhanced buy score sorting
-  const updateDisplayedStocks = useCallback(() => {
-    const sortedStocks = Array.from(stockDataMap.current.values())
-      .filter(stock => stock.buy_score > 0) // Only show stocks with calculated buy scores
-      .sort((a, b) => {
-        // Primary sort: buy score (descending)
-        if (b.buy_score !== a.buy_score) {
-          return b.buy_score - a.buy_score;
-        }
-        // Secondary sort: relative volume (descending)
-        if (b.relVol !== a.relVol) {
-          return b.relVol - a.relVol;
-        }
-        // Tertiary sort: price change percentage (descending for positive changes)
-        return Math.abs(b.todaysChangePerc) - Math.abs(a.todaysChangePerc);
-      })
-      .slice(0, 25); // Show top 25 stocks
-    
-    setStocks(sortedStocks);
-  }, []);
-
-  // Update Level 2 display
-  const updateLevel2Display = useCallback(() => {
-    if (!userPlan.features.level2Data) return;
-    
-    const topStocks = stocks.slice(0, 10);
-    const l2Data = topStocks
-      .map(stock => level2Map.current.get(stock.ticker))
-      .filter((data): data is Level2Data => data !== undefined)
-      .sort((a, b) => b.timestamp - a.timestamp); // Most recent first
-    
-    setLevel2Data(l2Data);
-  }, [stocks, userPlan.features.level2Data]);
-
-  // Update patterns display
-  const updatePatternsDisplay = useCallback(() => {
-    if (!userPlan.features.patternRecognition) {
-      setPatterns({});
-      return;
-    }
-    
-    const currentPatterns: PatternData = {};
-    
-    // Get patterns from scanner
-    const scannerPatterns = scanner.current?.getPatterns() || {};
-    
-    // Convert to display format
-    Object.entries(scannerPatterns).forEach(([ticker, patternList]) => {
-      if (patternList.length > 0) {
-        currentPatterns[ticker] = patternList;
-      }
-    });
-    
-    setPatterns(currentPatterns);
-  }, [userPlan.features.patternRecognition]);
-
-  // Enhanced alert checking with multiple criteria
-  const checkAlerts = useCallback((updated: Stock, existing: Stock) => {
-    // Price surge alert - enhanced thresholds
-    if (updated.todaysChangePerc > 25 && existing.todaysChangePerc <= 25) {
-      addAlert('critical', updated.ticker, `🚀 Major price surge! ${updated.todaysChangePerc.toFixed(1)}% gain`);
-    } else if (updated.todaysChangePerc > 15 && existing.todaysChangePerc <= 15) {
-      addAlert('warning', updated.ticker, `📈 Price surge detected: ${updated.todaysChangePerc.toFixed(1)}%`);
-    }
-    
-    // Volume spike alert - enhanced detection
-    if (updated.relVol > 15 && existing.relVol <= 15) {
-      addAlert('critical', updated.ticker, `🔥 MASSIVE volume spike! ${updated.relVol.toFixed(1)}x average`);
-    } else if (updated.relVol > 8 && existing.relVol <= 8) {
-      addAlert('warning', updated.ticker, `📊 High volume detected: ${updated.relVol.toFixed(1)}x average`);
-    }
-    
-    // Buy signal alerts - enhanced scoring
-    if (updated.buy_score >= 95 && existing.buy_score < 95) {
-      addAlert('critical', updated.ticker, `🎯 PREMIUM BUY SIGNAL! Score: ${updated.buy_score.toFixed(0)}/100`);
-    } else if (updated.buy_score >= 85 && existing.buy_score < 85) {
-      addAlert('warning', updated.ticker, `🚀 Strong buy signal: ${updated.buy_score.toFixed(0)}/100`);
-    } else if (updated.buy_score >= 75 && existing.buy_score < 75) {
-      addAlert('info', updated.ticker, `📊 Buy signal detected: ${updated.buy_score.toFixed(0)}/100`);
-    }
-    
-    // Catalyst alerts
-    if (updated.hasCatalyst && !existing.hasCatalyst) {
-      addAlert('info', updated.ticker, `📰 News catalyst detected for ${updated.ticker}`);
-    }
-    
-    // Volume surge with pattern combination
-    if (updated.volumeSurge && updated.patterns && updated.patterns.length > 0) {
-      const patternNames = updated.patterns.map(p => p.name).join(', ');
-      addAlert('warning', updated.ticker, `💥 Volume surge + Pattern: ${patternNames}`);
-    }
-  }, []);
-
-  // Add alert with enhanced categorization
-  const addAlert = useCallback((
-    severity: 'info' | 'warning' | 'critical', 
-    ticker: string, 
-    message: string,
-    alertType?: 'volume_surge' | 'price_breakout' | 'pattern_detected' | 'buy_signal' | 'news_catalyst' | 'system'
-  ) => {
-    // Determine alert type with proper typing
-    let determinedAlertType: 'volume_surge' | 'price_breakout' | 'pattern_detected' | 'buy_signal' | 'news_catalyst' | 'system' | undefined;
-    
-    if (alertType) {
-      determinedAlertType = alertType;
-    } else if (message.includes('BUY SIGNAL')) {
-      determinedAlertType = 'buy_signal';
-    } else if (message.includes('volume')) {
-      determinedAlertType = 'volume_surge';
-    } else if (message.includes('Pattern')) {
-      determinedAlertType = 'pattern_detected';
-    } else if (message.includes('surge')) {
-      determinedAlertType = 'price_breakout';
-    } else if (message.includes('News')) {
-      determinedAlertType = 'news_catalyst';
-    } else if (ticker === 'SYSTEM') {
-      determinedAlertType = 'system';
-    } else {
-      determinedAlertType = undefined;
-    }
-
-    const newAlert: Alert = { 
-      id: Date.now() + Math.random(), // Ensure unique IDs
-      severity, 
-      ticker, 
-      message, 
-      timestamp: Date.now(),
-      alertType: determinedAlertType
-    };
-    setAlerts(prev => [newAlert, ...prev.slice(0, 99)]);
-    addAlertToDB(newAlert);
-  }, []);
-
-  // Clear functions
-  const clearAlerts = async () => {
-    setAlerts([]);
-    await clearAllAlertsFromDB();
-  };
-
-  const clearLevel2Data = () => {
-    level2Map.current.clear();
-    setLevel2Data([]);
-  };
-
-  const clearPatterns = () => {
-    patternMap.current.clear();
-    setPatterns({});
-  };
-
-  // Start scanning with enhanced criteria
+  // Start scanning
   const startScanning = useCallback(() => {
-    if (isScanning || !wsConnected) return;
-    
-    setIsScanning(true);
-    setMarketStatus({ status: 'SCANNING', color: 'text-blue-400' });
-    
-    // Update scanner criteria based on user settings
-    const floatValue = parseHumanFloat(maxFloat);
-    scanner.current?.updateCriteria({
-      maxFloat: floatValue,
-      minRelativeVolume: 5,     // User specified >5x
-      minPriceChangePercent: 10, // User specified >10%
-      minPrice: 2,              // User specified $2-$20
-      maxPrice: 20,
-      requireNews: false        // Don't require news, but boost score if present
-    });
-    
-    addAlert('info', 'SYSTEM', '🚀 Enhanced market scanner started - real-time momentum detection active');
-    
-    // Force initial scan
-    scanner.current?.forceMarketScan();
-  }, [isScanning, wsConnected, maxFloat]);
+    if (scanner.current && !isScanning) {
+      setIsScanning(true);
+      addAlert('info', 'SYSTEM', '🔍 Enhanced scanning started - all advanced features active');
+      setMarketStatus({ status: 'SCANNING', color: 'text-blue-400' });
+    }
+  }, [isScanning, addAlert]);
 
   // Stop scanning
   const stopScanning = useCallback(() => {
-    if (!isScanning) return;
-    
-    setIsScanning(false);
-    setMarketStatus({ status: 'STOPPED', color: 'text-slate-400' });
-    addAlert('info', 'SYSTEM', '⏹️ Market scanner stopped');
-  }, [isScanning]);
+    if (isScanning) {
+      setIsScanning(false);
+      addAlert('info', 'SYSTEM', '⏹️ Scanning stopped');
+      setMarketStatus({ status: 'STOPPED', color: 'text-yellow-400' });
+    }
+  }, [isScanning, addAlert]);
 
-  // Update max float with enhanced validation
+  // Clear functions
+  const clearAlerts = useCallback(() => {
+    setAlerts([]);
+  }, []);
+
+  const clearLevel2Data = useCallback(() => {
+    level2Map.current.clear();
+    setLevel2Data([]);
+  }, []);
+
+  const clearPatterns = useCallback(() => {
+    patternMap.current.clear();
+    setPatterns({});
+  }, []);
+
+  // Update max float
   const updateMaxFloat = useCallback((value: string) => {
     setMaxFloat(value);
+    const floatValue = parseHumanFloat(value);
     localStorage.setItem('maxFloat', value);
     
     if (scanner.current) {
-      const floatValue = parseHumanFloat(value);
       scanner.current.updateCriteria({ maxFloat: floatValue });
       addAlert('info', 'SYSTEM', `📊 Max float updated to ${value}`);
     }
-  }, []);
+  }, [addAlert]);
 
   // Get API call count (enhanced tracking)
   const getApiCalls = useCallback(() => {
@@ -397,38 +349,6 @@ const useEnhancedPolygonScanner = () => {
   const getCatalystCount = useCallback(() => {
     return stocks.filter(stock => stock.hasCatalyst).length;
   }, [stocks]);
-
-  // Plan upgrade simulation
-  const upgradePlan = useCallback(() => {
-    setUserPlan({
-      level: 'advanced',
-      features: {
-        level2Data: true,
-        patternRecognition: true,
-        volumeSurgeDetection: true,
-        orderFlowAnalysis: true,
-        realTimeNews: true,
-        advancedScreening: true,
-        customAlerts: true
-      }
-    });
-    
-    // Update scanner with new plan
-    scanner.current?.updateUserPlan({
-      level: 'advanced',
-      features: {
-        level2Data: true,
-        patternRecognition: true,
-        volumeSurgeDetection: true,
-        orderFlowAnalysis: true,
-        realTimeNews: true,
-        advancedScreening: true,
-        customAlerts: true
-      }
-    });
-    
-    addAlert('info', 'SYSTEM', '🎉 Upgraded to Advanced Plan - all features unlocked!');
-  }, []);
 
   return {
     // Core state
@@ -442,7 +362,6 @@ const useEnhancedPolygonScanner = () => {
     lastUpdate,
     maxFloat,
     watchlistSize,
-    userPlan,
     
     // Enhanced metrics
     apiCalls: getApiCalls(),
@@ -457,11 +376,8 @@ const useEnhancedPolygonScanner = () => {
     clearLevel2Data,
     clearPatterns,
     
-    // Advanced functions
-    upgradePlan,
-    
     // Utility functions
-    testAlert: () => addAlert('info', 'TEST', 'Test alert generated'),
+    testAlert: () => addAlert('info', 'TEST', 'Test alert generated - all advanced features active'),
   };
 };
 
