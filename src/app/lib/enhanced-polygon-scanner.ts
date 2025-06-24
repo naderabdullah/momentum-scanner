@@ -71,6 +71,7 @@ export class EnhancedPolygonScanner {
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 10;
   private reconnectTimeout: NodeJS.Timeout | null = null;
+  private scanningInterval: NodeJS.Timeout | null = null;
   
   // Cache settings
   private cacheTimeout: number = 300000; // 5 minutes
@@ -449,7 +450,13 @@ export class EnhancedPolygonScanner {
   private startRealTimeScanning() {
     console.log('🚀 Starting real-time scanning...');
     
-    setInterval(() => {
+    // Clear any existing interval first
+    if (this.scanningInterval) {
+      clearInterval(this.scanningInterval);
+    }
+    
+    // Store the interval ID so we can clear it later
+    this.scanningInterval = setInterval(() => {
       this.performMarketScan();
     }, this.scanInterval);
   }
@@ -503,6 +510,12 @@ export class EnhancedPolygonScanner {
       this.reconnectTimeout = null;
     }
     
+    // Clear scanning interval when disconnecting
+    if (this.scanningInterval) {
+      clearInterval(this.scanningInterval);
+      this.scanningInterval = null;
+    }
+    
     if (this.stocksWS) {
       this.stocksWS.close();
     }
@@ -537,11 +550,22 @@ export class EnhancedPolygonScanner {
   }
 
   public stopScanning(): void {
+    if (this.scanningInterval) {
+      clearInterval(this.scanningInterval);
+      this.scanningInterval = null;
+    }
+    
     this.unsubscribeFromMarketData();
     console.log('⏹️ Stopped scanning and unsubscribed from market data');
   }
 
   public cleanup(): void {
+    // Clear interval during cleanup
+    if (this.scanningInterval) {
+      clearInterval(this.scanningInterval);
+      this.scanningInterval = null;
+    }
+    
     this.disconnect();
     this.marketMetrics.clear();
     this.watchlist.clear();
