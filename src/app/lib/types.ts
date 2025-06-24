@@ -264,7 +264,7 @@ export interface MarketData {
 // WebSocket message types
 export interface WebSocketMessage {
   type: 'trade' | 'quote' | 'aggregate' | 'news' | 'status';
-  data: any;
+  data: unknown;
   timestamp: number;
 }
 

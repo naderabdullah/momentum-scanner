@@ -21,7 +21,6 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
 }) => {
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
-  const [activeTab, setActiveTab] = useState<'alerts' | 'level2' | 'patterns'>('alerts');
 
   // Filter alerts based on severity
   const filteredAlerts = alerts.filter(alert => 
@@ -58,18 +57,6 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
     }
   };
 
-  const calculateSpreadBps = (spread: number, price: number): number => {
-    return (spread / price) * 10000; // Convert to basis points
-  };
-
-  const getOrderFlowColor = (orderFlow?: string): string => {
-    switch (orderFlow) {
-      case 'buying': return 'text-green-400';
-      case 'selling': return 'text-red-400';
-      default: return 'text-amber-400';
-    }
-  };
-
   const getOrderFlowText = (orderFlow?: string): string => {
     switch (orderFlow) {
       case 'buying': return 'BUYING';
@@ -78,243 +65,208 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
     }
   };
 
-  const TabButton = ({ tab, label, count }: { tab: 'alerts' | 'level2' | 'patterns', label: string, count?: number }) => (
-    <button
-      onClick={() => setActiveTab(tab)}
-      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-        activeTab === tab
-          ? 'bg-cyan-600 text-white'
-          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-      }`}
-    >
-      {label}
-      {count !== undefined && count > 0 && (
-        <span className="ml-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-          {count}
-        </span>
-      )}
-    </button>
-  );
-
   return (
-    <div className="bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden">
-      {/* Header with Tabs */}
-      <div className="bg-slate-800/70 px-6 py-4 border-b border-slate-700">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-white">📊 Advanced Analytics</h2>
-          <div className="flex items-center gap-1 bg-green-900/20 text-green-400 px-2 py-1 rounded text-xs">
-            <span>✨</span>
-            <span>Real-time</span>
+    <div className="space-y-4">
+      {/* Alerts Panel */}
+      <div className="bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden">
+        <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              🚨 Real-time Alerts
+              {alerts.length > 0 && (
+                <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {alerts.length}
+                </span>
+              )}
+            </h3>
+            <div className="flex items-center gap-2">
+              <select
+                value={filterSeverity}
+                onChange={(e) => setFilterSeverity(e.target.value)}
+                className="bg-slate-700 text-white px-2 py-1 rounded text-xs border border-slate-600"
+              >
+                <option value="all">All</option>
+                <option value="critical">Critical</option>
+                <option value="warning">Warning</option>
+                <option value="info">Info</option>
+              </select>
+              <button
+                onClick={clearAlerts}
+                className="text-slate-400 hover:text-white text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+              >
+                🗑️
+              </button>
+            </div>
           </div>
         </div>
-        
-        <div className="flex gap-2">
-          <TabButton tab="alerts" label="🚨 Alerts" count={alerts.length} />
-          <TabButton tab="level2" label="📊 Level 2" count={level2Data.length} />
-          <TabButton tab="patterns" label="🎯 Patterns" count={Object.keys(patterns).length} />
+
+        <div className="p-4 max-h-64 overflow-y-auto">
+          <div className="space-y-2">
+            {filteredAlerts.slice(0, 10).map((alert) => (
+              <div
+                key={alert.id}
+                className={`p-3 rounded-lg border-l-4 cursor-pointer hover:bg-slate-700/30 transition-colors ${getSeverityColor(alert.severity)}`}
+                onClick={() => setSelectedAlert(selectedAlert?.id === alert.id ? null : alert)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{getAlertIcon(alert.alertType)}</span>
+                    <span className="font-medium text-white text-sm">{alert.ticker}</span>
+                    <span className="text-xs text-slate-400">
+                      {formatAlertTime(alert.timestamp)}
+                    </span>
+                  </div>
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    alert.severity === 'critical' ? 'bg-red-900 text-red-400' :
+                    alert.severity === 'warning' ? 'bg-yellow-900 text-yellow-400' :
+                    'bg-blue-900 text-blue-400'
+                  }`}>
+                    {alert.severity.toUpperCase()}
+                  </span>
+                </div>
+                <p className="text-slate-300 text-sm mt-1">{alert.message}</p>
+              </div>
+            ))}
+            
+            {filteredAlerts.length === 0 && (
+              <div className="text-center py-6 text-slate-400 text-sm">
+                {filterSeverity === 'all' ? 'No alerts yet' : `No ${filterSeverity} alerts`}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-6 max-h-96 overflow-y-auto">
-        {/* Alerts Tab */}
-        {activeTab === 'alerts' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <select
-                  value={filterSeverity}
-                  onChange={(e) => setFilterSeverity(e.target.value)}
-                  className="bg-slate-700 text-white px-3 py-1 rounded text-sm border border-slate-600"
-                >
-                  <option value="all">All Alerts</option>
-                  <option value="critical">Critical</option>
-                  <option value="warning">Warning</option>
-                  <option value="info">Info</option>
-                </select>
-              </div>
-              
-              <button
-                onClick={clearAlerts}
-                className="text-slate-400 hover:text-white text-sm px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
-              >
-                🗑️ Clear
-              </button>
-            </div>
+      {/* Level 2 Panel */}
+      <div className="bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden">
+        <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              📊 Level 2 Order Flow
+              {level2Data.length > 0 && (
+                <span className="bg-cyan-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {level2Data.length}
+                </span>
+              )}
+            </h3>
+            <button
+              onClick={clearLevel2Data}
+              className="text-slate-400 hover:text-white text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+            >
+              🗑️
+            </button>
+          </div>
+        </div>
 
-            <div className="space-y-2">
-              {filteredAlerts.map((alert) => (
-                <div
-                  key={alert.id}
-                  className={`p-3 rounded-lg border-l-4 cursor-pointer hover:bg-slate-700/30 transition-colors ${getSeverityColor(alert.severity)}`}
-                  onClick={() => setSelectedAlert(selectedAlert?.id === alert.id ? null : alert)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{getAlertIcon(alert.alertType)}</span>
-                      <span className="font-medium text-white">{alert.ticker}</span>
-                      <span className="text-xs text-slate-400">
-                        {formatAlertTime(alert.timestamp)}
-                      </span>
-                    </div>
+        <div className="p-4 max-h-64 overflow-y-auto">
+          <div className="space-y-3">
+            {level2Data.slice(0, 5).map((data, index) => (
+              <div key={`${data.ticker}-${index}`} className="bg-slate-700/50 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium text-white">{data.ticker}</h4>
+                  <div className="flex items-center gap-2">
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      alert.severity === 'critical' ? 'bg-red-900 text-red-400' :
-                      alert.severity === 'warning' ? 'bg-yellow-900 text-yellow-400' :
-                      'bg-blue-900 text-blue-400'
+                      data.orderFlow === 'buying' ? 'bg-green-900 text-green-400' :
+                      data.orderFlow === 'selling' ? 'bg-red-900 text-red-400' :
+                      'bg-slate-600 text-slate-300'
                     }`}>
-                      {alert.severity.toUpperCase()}
+                      {getOrderFlowText(data.orderFlow)}
+                    </span>
+                    <span className="text-xs text-slate-400">
+                      {formatAlertTime(data.timestamp)}
                     </span>
                   </div>
-                  <p className="text-slate-300 text-sm mt-1">{alert.message}</p>
-                  
-                  {selectedAlert?.id === alert.id && (
-                    <div className="mt-3 pt-3 border-t border-slate-600 text-xs text-slate-400">
-                      <div>Alert ID: {alert.id}</div>
-                      <div>Type: {alert.alertType || 'general'}</div>
-                      <div>Timestamp: {new Date(alert.timestamp).toLocaleString()}</div>
-                    </div>
-                  )}
                 </div>
-              ))}
-              
-              {filteredAlerts.length === 0 && (
-                <div className="text-center py-8 text-slate-400">
-                  {filterSeverity === 'all' ? 'No alerts yet' : `No ${filterSeverity} alerts`}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Level 2 Tab */}
-        {activeTab === 'level2' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-white">Real-time Order Flow</h3>
-              <button
-                onClick={clearLevel2Data}
-                className="text-slate-400 hover:text-white text-sm px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
-              >
-                🗑️ Clear
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {level2Data.map((data, index) => (
-                <div key={`${data.ticker}-${index}`} className="bg-slate-700/50 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-medium text-white text-lg">{data.ticker}</h4>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        data.orderFlow === 'buying' ? 'bg-green-900 text-green-400' :
-                        data.orderFlow === 'selling' ? 'bg-red-900 text-red-400' :
-                        'bg-slate-600 text-slate-300'
-                      }`}>
-                        {getOrderFlowText(data.orderFlow)}
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        {formatAlertTime(data.timestamp)}
-                      </span>
+                
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div className="text-slate-400 text-xs">Bid</div>
+                    <div className="text-green-400 font-mono text-sm">
+                      ${data.bid_price?.toFixed(2)} x {data.bid_size?.toLocaleString()}
                     </div>
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Bid:</span>
-                        <span className="text-green-400 font-mono">
-                          ${data.bid_price?.toFixed(2)} x {data.bid_size?.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Ask:</span>
-                        <span className="text-red-400 font-mono">
-                          ${data.ask_price?.toFixed(2)} x {data.ask_size?.toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Spread:</span>
-                        <span className="text-white font-mono">
-                          ${data.spread?.toFixed(3)} ({data.spreadPercent?.toFixed(2)}%)
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">Spread (bps):</span>
-                        <span className="text-cyan-400 font-mono">
-                          {calculateSpreadBps(data.spread || 0, data.bid_price || 1).toFixed(1)}
-                        </span>
-                      </div>
+                  <div>
+                    <div className="text-slate-400 text-xs">Ask</div>
+                    <div className="text-red-400 font-mono text-sm">
+                      ${data.ask_price?.toFixed(2)} x {data.ask_size?.toLocaleString()}
                     </div>
                   </div>
-                  
-                  {data.imbalance !== undefined && (
-                    <div className="mt-3 pt-3 border-t border-slate-600">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-400">Order Imbalance:</span>
-                        <span className={`font-mono ${data.imbalance > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {((data.imbalance || 0) * 100).toFixed(1)}%
+                  <div>
+                    <div className="text-slate-400 text-xs">Spread</div>
+                    <div className="text-white font-mono text-sm">
+                      ${data.spread?.toFixed(3)} ({data.spreadPercent?.toFixed(2)}%)
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-slate-400 text-xs">Imbalance</div>
+                    <div className={`font-mono text-sm ${data.imbalance && data.imbalance > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {((data.imbalance || 0) * 100).toFixed(1)}%
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {level2Data.length === 0 && (
+              <div className="text-center py-6 text-slate-400 text-sm">
+                No Level 2 data available
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Patterns Panel */}
+      <div className="bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden">
+        <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              🎯 Pattern Recognition
+              {Object.keys(patterns).length > 0 && (
+                <span className="bg-purple-500 text-white text-xs px-2 py-0.5 rounded-full">
+                  {Object.keys(patterns).length}
+                </span>
+              )}
+            </h3>
+            <button
+              onClick={clearPatterns}
+              className="text-slate-400 hover:text-white text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+            >
+              🗑️
+            </button>
+          </div>
+        </div>
+
+        <div className="p-4 max-h-64 overflow-y-auto">
+          <div className="space-y-3">
+            {Object.entries(patterns).slice(0, 5).map(([ticker, patternList]) => (
+              <div key={ticker} className="bg-slate-700/50 rounded-lg p-3">
+                <h4 className="font-medium text-white mb-2">{ticker}</h4>
+                <div className="space-y-2">
+                  {patternList.map((patternName, index) => (
+                    <div key={index} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-blue-400 font-medium text-sm">{patternName}</span>
+                        <span className="text-xs text-slate-400">• Real-time</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-1 bg-blue-900 text-blue-400 rounded text-xs">
+                          DETECTED
                         </span>
                       </div>
                     </div>
-                  )}
+                  ))}
                 </div>
-              ))}
-              
-              {level2Data.length === 0 && (
-                <div className="text-center py-8 text-slate-400">
-                  No Level 2 data available
-                </div>
-              )}
-            </div>
+              </div>
+            ))}
+            
+            {Object.keys(patterns).length === 0 && (
+              <div className="text-center py-6 text-slate-400 text-sm">
+                No patterns detected yet
+              </div>
+            )}
           </div>
-        )}
-
-        {/* Patterns Tab */}
-        {activeTab === 'patterns' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-white">Pattern Recognition</h3>
-              <button
-                onClick={clearPatterns}
-                className="text-slate-400 hover:text-white text-sm px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
-              >
-                🗑️ Clear
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {Object.entries(patterns).map(([ticker, patternList]) => (
-                <div key={ticker} className="bg-slate-700/50 rounded-lg p-4">
-                  <h4 className="font-medium text-white text-lg mb-3">{ticker}</h4>
-                  <div className="space-y-2">
-                    {patternList.map((patternName, index) => (
-                      <div key={index} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-blue-400 font-medium">{patternName}</span>
-                          <span className="text-xs text-slate-400">• Real-time</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-1 bg-blue-900 text-blue-400 rounded text-xs">
-                            DETECTED
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              
-              {Object.keys(patterns).length === 0 && (
-                <div className="text-center py-8 text-slate-400">
-                  No patterns detected yet
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

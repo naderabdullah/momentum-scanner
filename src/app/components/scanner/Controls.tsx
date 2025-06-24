@@ -20,7 +20,6 @@ const Controls: React.FC<ControlsProps> = ({
   testAlert,
   wsConnected
 }) => {
-  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [tempMaxFloat, setTempMaxFloat] = useState(maxFloat);
 
   const handleFloatChange = (value: string) => {
@@ -99,110 +98,7 @@ const Controls: React.FC<ControlsProps> = ({
           </div>
         </div>
 
-        {/* Advanced Settings Panel */}
-        {showAdvancedSettings && (
-          <div className="mt-4 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Scanning Criteria */}
-              <div className="space-y-2">
-                <h4 className="text-sm font-bold text-cyan-400">📊 Scanning Criteria</h4>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Min Rel Volume:</span>
-                    <span className="text-green-400 font-mono">5.0x</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Min Price Change:</span>
-                    <span className="text-green-400 font-mono">10.0%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Price Range:</span>
-                    <span className="text-green-400 font-mono">$2-$20</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Max Float:</span>
-                    <span className="text-green-400 font-mono">{maxFloat}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Feature Status - All Enabled */}
-              <div className="space-y-2">
-                <h4 className="text-sm font-bold text-indigo-400">🎯 Features</h4>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Level 2 Data:</span>
-                    <span className="text-green-400">✓ ON</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Pattern Recognition:</span>
-                    <span className="text-green-400">✓ ON</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Volume Surge:</span>
-                    <span className="text-green-400">✓ ON</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Order Flow:</span>
-                    <span className="text-green-400">✓ ON</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Buy Score Weights */}
-              <div className="space-y-2">
-                <h4 className="text-sm font-bold text-amber-400">⚖️ Score Weights</h4>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Rel Volume:</span>
-                    <span className="text-amber-400 font-mono">30%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Price Change:</span>
-                    <span className="text-amber-400 font-mono">25%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Float Size:</span>
-                    <span className="text-amber-400 font-mono">20%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Price Range:</span>
-                    <span className="text-amber-400 font-mono">10%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">News + Patterns:</span>
-                    <span className="text-amber-400 font-mono">15%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Performance Metrics */}
-              <div className="space-y-2">
-                <h4 className="text-sm font-bold text-rose-400">📈 Performance</h4>
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">WebSocket:</span>
-                    <span className={wsConnected ? 'text-green-400' : 'text-red-400'}>
-                      {wsConnected ? '✓ CONNECTED' : '✗ DISCONNECTED'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Real-time Data:</span>
-                    <span className="text-green-400">✓ ACTIVE</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Pattern Detection:</span>
-                    <span className="text-green-400">✓ RUNNING</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Volume Analysis:</span>
-                    <span className="text-green-400">✓ ACTIVE</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Advanced Settings Panel - Removed since it was unused */}
       </div>
     </div>
   );

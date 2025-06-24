@@ -9,7 +9,6 @@ interface MarketStatus {
 interface StatusBarProps {
   marketStatus: MarketStatus;
   stockCount: number;
-  apiCalls: number;
   catalystCount: number;
   lastUpdate: string;
   wsConnected: boolean;
@@ -18,7 +17,6 @@ interface StatusBarProps {
 const StatusBar: React.FC<StatusBarProps> = ({
   marketStatus,
   stockCount,
-  apiCalls,
   catalystCount,
   lastUpdate,
   wsConnected

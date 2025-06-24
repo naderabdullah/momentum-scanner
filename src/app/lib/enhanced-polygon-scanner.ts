@@ -1,6 +1,6 @@
 // src/app/lib/enhanced-polygon-scanner.ts
 import { websocketClient } from "@polygon.io/client-js";
-import { Stock, Alert, Level2Data, PatternData, BuyScoreCriteria, CandlestickData, VolumeProfile, DetectedPattern } from './types';
+import { Stock, Alert, Level2Data, BuyScoreCriteria, CandlestickData, VolumeProfile, DetectedPattern } from './types';
 import { AdvancedPatternRecognizer } from './pattern-recognition';
 
 interface MarketMetrics {
@@ -33,9 +33,39 @@ interface CachedData<T> {
   timestamp: number;
 }
 
+interface WebSocketMessage {
+  ev: string;
+  sym?: string;
+  p?: number;
+  s?: number;
+  t?: number;
+  c?: number;
+  v?: number;
+  o?: number;
+  h?: number;
+  l?: number;
+  vw?: number;
+  n?: number;
+  bp?: number;
+  bs?: number;
+  ap?: number;
+  as?: number;
+  status?: string;
+  message?: string;
+}
+
+interface PolygonWebSocket {
+  onopen?: (event: Event) => void;
+  onmessage?: (event: { data: string }) => void;
+  onclose?: (event: CloseEvent) => void;
+  onerror?: (event: Event) => void;
+  send: (data: string) => void;
+  close: () => void;
+}
+
 export class EnhancedPolygonScanner {
-  private stocksWS: any;
-  private restClient: any;
+  private stocksWS: PolygonWebSocket | null = null;
+  private restClient: unknown = null;
   private _isConnected: boolean = false;
   private marketMetrics: Map<string, MarketMetrics> = new Map();
   private watchlist: Set<string> = new Set();
@@ -44,8 +74,8 @@ export class EnhancedPolygonScanner {
   private patternRecognizer: AdvancedPatternRecognizer;
   private volumeProfiles: Map<string, VolumeProfile> = new Map();
   private level2Cache: Map<string, Level2Data> = new Map();
-  private newsCache: Map<string, CachedData<any[]>> = new Map();
-  private detailsCache: Map<string, CachedData<any>> = new Map();
+  private newsCache: Map<string, CachedData<unknown[]>> = new Map();
+  private detailsCache: Map<string, CachedData<unknown>> = new Map();
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 10;
   private reconnectTimeout: NodeJS.Timeout | null = null;
@@ -172,7 +202,7 @@ export class EnhancedPolygonScanner {
         }
       };
 
-      this.stocksWS.onerror = (error: any) => {
+      this.stocksWS.onerror = (error: Event) => {
         console.error('❌ Polygon WebSocket error:', error);
         this.onError?.('WebSocket connection error');
       };
@@ -183,15 +213,14 @@ export class EnhancedPolygonScanner {
   }
 
   private subscribeToMarketData() {
-    if (!this.stocksWS || this.stocksWS.readyState !== WebSocket.OPEN) {
-      console.error('❌ Cannot subscribe: WebSocket not open');
+    if (!this.stocksWS) {
+      console.error('❌ Cannot subscribe: WebSocket not initialized');
       return;
     }
 
     try {
       console.log('📡 Subscribing to ALL advanced market data streams...');
       
-      // Subscribe to ALL streams since we removed plan restrictions
       const subscriptions = [
         'T.*',   // All trades
         'AM.*',  // All minute aggregates
@@ -205,16 +234,15 @@ export class EnhancedPolygonScanner {
       };
 
       console.log('📤 Sending advanced subscription message:', subscribeMessage);
-      this.stocksWS.send(JSON.stringify(subscribeMessage));
+      this.stocksWS!.send(JSON.stringify(subscribeMessage));
       
-      // Send authentication message
       const authMessage = {
         action: 'auth',
         params: process.env.NEXT_PUBLIC_POLYGON_API_KEY
       };
       
       console.log('🔐 Sending authentication message...');
-      this.stocksWS.send(JSON.stringify(authMessage));
+      this.stocksWS!.send(JSON.stringify(authMessage));
       
     } catch (error) {
       console.error('❌ Failed to subscribe to market data:', error);
@@ -222,7 +250,7 @@ export class EnhancedPolygonScanner {
     }
   }
 
-  private handleMessage(message: any) {
+  private handleMessage(message: WebSocketMessage) {
     if (!message || !message.ev) return;
 
     switch (message.ev) {
@@ -244,7 +272,7 @@ export class EnhancedPolygonScanner {
     }
   }
 
-  private handleStatusMessage(message: any) {
+  private handleStatusMessage(message: WebSocketMessage) {
     console.log('📊 WebSocket Status:', message);
     if (message.status === 'auth_success') {
       console.log('✅ Authentication successful');
@@ -258,16 +286,16 @@ export class EnhancedPolygonScanner {
     }
   }
 
-  private handleTradeMessage(message: any) {
+  private handleTradeMessage(message: WebSocketMessage) {
     const ticker = message.sym;
-    if (!ticker) return;
+    if (!ticker || !message.p || !message.s) return;
 
     const existing = this.marketMetrics.get(ticker);
     const trade = {
       ticker,
       price: message.p,
       volume: message.s,
-      timestamp: message.t,
+      timestamp: message.t || Date.now(),
       volumeRatio: existing ? (message.s / (existing.volume || 1)) : 1,
       priceChangePercent: existing ? ((message.p - existing.price) / existing.price) * 100 : 0,
       dayOpen: existing?.dayOpen || message.p,
@@ -285,21 +313,21 @@ export class EnhancedPolygonScanner {
     this.checkVolumeSurge(ticker, trade);
   }
 
-  private handleAggregateMessage(message: any) {
+  private handleAggregateMessage(message: WebSocketMessage) {
     const ticker = message.sym;
-    if (!ticker) return;
+    if (!ticker || !message.c || !message.v || !message.o) return;
 
     const aggregate = {
       ticker,
       price: message.c,
       volume: message.v,
-      volumeRatio: message.v / (message.av || 1),
+      volumeRatio: message.v / (1), // Would need average volume data
       priceChangePercent: ((message.c - message.o) / message.o) * 100,
       dayOpen: message.o,
-      dayHigh: message.h,
-      dayLow: message.l,
-      vwap: message.vw,
-      timestamp: message.t,
+      dayHigh: message.h || message.c,
+      dayLow: message.l || message.c,
+      vwap: message.vw || message.c,
+      timestamp: message.t || Date.now(),
       trades: message.n || 0,
       candlestickData: []
     };
@@ -311,9 +339,9 @@ export class EnhancedPolygonScanner {
     this.runPatternRecognition(ticker, aggregate);
   }
 
-  private handleQuoteMessage(message: any) {
+  private handleQuoteMessage(message: WebSocketMessage) {
     const ticker = message.sym;
-    if (!ticker) return;
+    if (!ticker || !message.bp || !message.ap || !message.bs || !message.as) return;
 
     const level2Data: Level2Data = {
       ticker,
@@ -323,7 +351,7 @@ export class EnhancedPolygonScanner {
       ask_size: message.as,
       spread: message.ap - message.bp,
       spreadPercent: ((message.ap - message.bp) / message.bp) * 100,
-      timestamp: message.t,
+      timestamp: message.t || Date.now(),
       orderFlow: this.calculateOrderFlow(message),
       imbalance: (message.bs - message.as) / (message.bs + message.as)
     };
@@ -332,13 +360,13 @@ export class EnhancedPolygonScanner {
     this.onLevel2Update?.(level2Data);
   }
 
-  private handleSecondAggregateMessage(message: any) {
+  private handleSecondAggregateMessage(message: WebSocketMessage) {
     // Use second aggregates for more granular pattern detection
     const ticker = message.sym;
-    if (!ticker) return;
+    if (!ticker || !message.o || !message.h || !message.l || !message.c || !message.v) return;
 
     const candlestick: CandlestickData = {
-      timestamp: message.t,
+      timestamp: message.t || Date.now(),
       open: message.o,
       high: message.h,
       low: message.l,
@@ -357,7 +385,7 @@ export class EnhancedPolygonScanner {
     }
   }
 
-  private calculateOrderFlow(quote: any): 'buying' | 'selling' | 'neutral' {
+  private calculateOrderFlow(quote: WebSocketMessage): 'buying' | 'selling' | 'neutral' {
     const bidSize = quote.bs || 0;
     const askSize = quote.as || 0;
     const ratio = bidSize / (askSize || 1);

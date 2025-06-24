@@ -32,7 +32,6 @@ export default function EnhancedScannerPage() {
       <StatusBar
         marketStatus={scanner.marketStatus}
         stockCount={scanner.stocks.length}
-        apiCalls={scanner.apiCalls}
         catalystCount={scanner.catalystCount}
         lastUpdate={scanner.lastUpdate}
         wsConnected={scanner.wsConnected}
