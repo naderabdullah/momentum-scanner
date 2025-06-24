@@ -21,7 +21,7 @@ export class AdvancedPatternRecognizer implements PatternRecognizer {
     // Look for strong upward move followed by sideways consolidation
     const strongMove = this.hasStrongUpwardMove(flagStart);
     const consolidation = this.hasSidewaysConsolidation(flagEnd);
-    const volumeConfirmation = this.hasVolumeConfirmation(recent, 'bull_flag');
+    const volumeConfirmation = this.hasVolumeConfirmation(recent);
     
     if (strongMove && consolidation && volumeConfirmation) {
       const confidence = this.calculatePatternConfidence([strongMove, consolidation, volumeConfirmation]);
@@ -46,7 +46,7 @@ export class AdvancedPatternRecognizer implements PatternRecognizer {
     
     const strongMove = this.hasStrongDownwardMove(flagStart);
     const consolidation = this.hasSidewaysConsolidation(flagEnd);
-    const volumeConfirmation = this.hasVolumeConfirmation(recent, 'bear_flag');
+    const volumeConfirmation = this.hasVolumeConfirmation(recent);
     
     if (strongMove && consolidation && volumeConfirmation) {
       const confidence = this.calculatePatternConfidence([strongMove, consolidation, volumeConfirmation]);
@@ -230,7 +230,7 @@ export class AdvancedPatternRecognizer implements PatternRecognizer {
     return range < 3; // Less than 3% range
   }
 
-  private hasVolumeConfirmation(candles: CandlestickData[], patternType: string): boolean {
+  private hasVolumeConfirmation(candles: CandlestickData[]): boolean {
     if (candles.length === 0) return false;
     const avgVolume = candles.reduce((sum, c) => sum + c.volume, 0) / candles.length;
     const recentVolume = candles.slice(-5).reduce((sum, c) => sum + c.volume, 0) / 5;
