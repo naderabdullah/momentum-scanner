@@ -97,8 +97,6 @@ const Controls: React.FC<ControlsProps> = ({
             </button>
           </div>
         </div>
-
-        {/* Advanced Settings Panel - Removed since it was unused */}
       </div>
     </div>
   );

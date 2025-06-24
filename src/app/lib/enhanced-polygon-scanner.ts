@@ -65,6 +65,7 @@ interface PolygonWebSocket {
 
 export class EnhancedPolygonScanner {
   private stocksWS: PolygonWebSocket | null = null;
+  private apiKey: string;
   private restClient: unknown = null;
   private _isConnected: boolean = false;
   private marketMetrics: Map<string, MarketMetrics> = new Map();
@@ -100,10 +101,11 @@ export class EnhancedPolygonScanner {
     if (!apiKey || apiKey.trim() === '') {
       throw new Error('Polygon API key is required');
     }
+    this.apiKey = apiKey;
 
     // Initialize Polygon clients
     try {
-      const polygonClient = websocketClient(apiKey);
+      const polygonClient = websocketClient(apiKey, 'wss://socket.polygon.io');
       this.stocksWS = polygonClient.stocks();
       
       // Import REST client for scanning
@@ -225,6 +227,13 @@ export class EnhancedPolygonScanner {
     }
 
     try {
+      const authMessage = {
+        action: 'auth',
+        params: this.apiKey
+      };
+      console.log('🔐 Sending authentication message...');
+      this.stocksWS!.send(JSON.stringify(authMessage));
+
       console.log('📡 Subscribing to ALL advanced market data streams...');
       
       const subscriptions = [
@@ -241,14 +250,6 @@ export class EnhancedPolygonScanner {
 
       console.log('📤 Sending advanced subscription message:', subscribeMessage);
       this.stocksWS!.send(JSON.stringify(subscribeMessage));
-      
-      const authMessage = {
-        action: 'auth',
-        params: process.env.NEXT_PUBLIC_POLYGON_API_KEY
-      };
-      
-      console.log('🔐 Sending authentication message...');
-      this.stocksWS!.send(JSON.stringify(authMessage));
       
     } catch (error) {
       console.error('❌ Failed to subscribe to market data:', error);
@@ -280,13 +281,33 @@ export class EnhancedPolygonScanner {
 
   private handleStatusMessage(message: WebSocketMessage) {
     console.log('📊 WebSocket Status:', message);
+
     if (message.status === 'auth_success') {
       console.log('✅ Authentication successful');
       this.onAlert?.({
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         severity: 'info',
         ticker: 'SYSTEM',
         message: '🔐 Authentication successful - all advanced features active',
+        timestamp: Date.now()
+      });
+    } else if (message.status === 'success') {
+      // Handle successful subscription messages
+      this.onAlert?.({
+        id: Date.now() + Math.random(),
+        severity: 'info',
+        ticker: 'SYSTEM',
+        message: `✅ Successfully subscribed: ${message.message}`,
+        timestamp: Date.now()
+      });
+    } else if (message.status === 'error') {
+      // Handle error messages from Polygon
+      console.error('❌ Polygon WebSocket Error:', message.message);
+      this.onAlert?.({
+        id: Date.now() + Math.random(),
+        severity: 'critical',
+        ticker: 'SYSTEM',
+        message: `❌ Subscription Error: ${message.message}. Your API key plan may not have permission for this data.`,
         timestamp: Date.now()
       });
     }
@@ -454,7 +475,7 @@ export class EnhancedPolygonScanner {
     // Check if stock meets scanning criteria for alerts
     if (this.meetsAlertCriteria(metrics, buyScore)) {
       this.onAlert?.({
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         severity: buyScore > 80 ? 'critical' : 'warning',
         ticker,
         message: `🎯 High buy score: ${buyScore.toFixed(0)} | Volume: ${metrics.volumeRatio.toFixed(1)}x | Change: ${metrics.priceChangePercent.toFixed(1)}%`,
@@ -537,28 +558,26 @@ export class EnhancedPolygonScanner {
     this.marketMetrics.forEach((metrics, ticker) => {
       const buyScore = this.calculateBuyScore(metrics);
       
-      //if (buyScore > 50) { // Only include stocks with decent scores
-        const stock: Stock = {
-          ticker,
-          price: metrics.price,
-          todaysChange: metrics.price - metrics.dayOpen,
-          todaysChangePerc: metrics.priceChangePercent,
-          day: {
-            v: metrics.volume,
-            o: metrics.dayOpen,
-            h: metrics.dayHigh,
-            l: metrics.dayLow,
-            c: metrics.price,
-            vw: metrics.vwap
-          },
-          relVol: metrics.volumeRatio,
-          float: 0, // Would need to fetch from API
-          buy_score: buyScore,
-          hasCatalyst: this.checkForCatalyst(ticker),
-          volumeSurge: metrics.volumeRatio > 5
-        };
-        stocks.push(stock);
-      //}
+      const stock: Stock = {
+        ticker,
+        price: metrics.price,
+        todaysChange: metrics.price - metrics.dayOpen,
+        todaysChangePerc: metrics.priceChangePercent,
+        day: {
+          v: metrics.volume,
+          o: metrics.dayOpen,
+          h: metrics.dayHigh,
+          l: metrics.dayLow,
+          c: metrics.price,
+          vw: metrics.vwap
+        },
+        relVol: metrics.volumeRatio,
+        float: 0, // Would need to fetch from API
+        buy_score: buyScore,
+        hasCatalyst: this.checkForCatalyst(ticker),
+        volumeSurge: metrics.volumeRatio > 5
+      };
+      stocks.push(stock);
     });
 
     // Sort by buy score
