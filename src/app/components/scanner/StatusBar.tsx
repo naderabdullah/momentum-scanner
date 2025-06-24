@@ -125,18 +125,19 @@ const StatusBar: React.FC<StatusBarProps> = ({
   const marketDisplay = getMarketSessionDisplay();
 
   return (
-    <div className="sticky top-[73px] z-10 bg-slate-900/95 backdrop-filter backdrop-blur-lg border-b border-slate-800 p-2">
-      <div className="max-w-7xl mx-auto">
-        {/* Main Combined Row */}
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
-          {/* Left Side: Scan Controls + Connection Status */}
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-3">
+    <div className="sticky top-[73px] z-10 bg-slate-900/95 backdrop-filter backdrop-blur-lg border-b border-slate-800 py-3 pl-4 pr-8">
+      <div className="w-full">
+        {/* Improved Layout with Better Spacing - Single Row Design */}
+        <div className="flex items-center justify-between min-h-[50px]">
+          
+          {/* Left Section: Scan Controls with Proper Spacing */}
+          <div className="flex items-center space-x-8 flex-shrink-0">
+            <div className="flex items-center space-x-4 bg-slate-800/30 rounded-lg px-4 py-2 border border-slate-700/50">
               {!isScanning ? (
                 <button
                   onClick={startScan}
                   disabled={!wsConnected}
-                  className={`px-4 py-2 rounded-lg font-bold transition-all duration-200 ${
+                  className={`px-4 py-2 rounded-lg font-bold transition-all duration-200 whitespace-nowrap ${
                     wsConnected
                       ? 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white shadow-lg hover:shadow-green-500/25'
                       : 'bg-slate-700 text-slate-400 cursor-not-allowed'
@@ -147,23 +148,27 @@ const StatusBar: React.FC<StatusBarProps> = ({
               ) : (
                 <button
                   onClick={stopScan}
-                  className="px-4 py-2 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white rounded-lg font-bold transition-all duration-200 shadow-lg hover:shadow-red-500/25"
+                  className="px-4 py-2 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white rounded-lg font-bold transition-all duration-200 shadow-lg hover:shadow-red-500/25 whitespace-nowrap"
                 >
                   ⏹️ Stop Scan
                 </button>
               )}
 
-              <span className={`text-sm font-bold ${connectionStatus.color}`}>
+              <div className="w-px h-6 bg-slate-600"></div>
+
+              <span className={`text-sm font-bold whitespace-nowrap ${connectionStatus.color}`}>
                 {connectionStatus.text}
               </span>
             </div>
           </div>
 
-          {/* Center: Market Status + Performance Metrics */}
-          <div className="flex items-center gap-12">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-400">EST:</span>
-              <span className="text-sm font-bold text-white">
+          {/* Center Section: Market & Performance Data with Individual Containers */}
+          <div className="flex items-center space-x-6 flex-1 justify-center">
+            
+            {/* Time Display */}
+            <div className="flex items-center space-x-2 bg-slate-800/20 rounded-md px-3 py-1.5 border border-slate-700/30">
+              <span className="text-xs text-slate-400 whitespace-nowrap">EST:</span>
+              <span className="text-sm font-bold text-white font-mono whitespace-nowrap">
                 {currentTime.toLocaleTimeString('en-US', { 
                   hour12: false, 
                   timeZone: 'America/New_York' 
@@ -171,49 +176,58 @@ const StatusBar: React.FC<StatusBarProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className={`text-sm font-bold ${marketDisplay.color}`}>
+            {/* Market Status */}
+            <div className="flex items-center space-x-2 bg-slate-800/20 rounded-md px-3 py-1.5 border border-slate-700/30">
+              <span className={`text-sm font-bold whitespace-nowrap ${marketDisplay.color}`}>
                 {marketDisplay.icon} {marketDisplay.text}
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-400">Stocks:</span>
-              <span className="text-sm font-bold text-cyan-400">{stockCount}</span>
+            {/* Stock Count */}
+            <div className="flex items-center space-x-2 bg-slate-800/20 rounded-md px-3 py-1.5 border border-slate-700/30">
+              <span className="text-xs text-slate-400 whitespace-nowrap">Stocks:</span>
+              <span className="text-sm font-bold text-cyan-400 whitespace-nowrap">{stockCount}</span>
             </div>
             
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-400">Catalysts:</span>
-              <span className="text-sm font-bold text-purple-400">
-                {catalystCount > 0 ? Math.round((catalystCount / stockCount) * 100) : 0}%
+            {/* Catalyst Data */}
+            <div className="flex items-center space-x-2 bg-slate-800/20 rounded-md px-3 py-1.5 border border-slate-700/30">
+              <span className="text-xs text-slate-400 whitespace-nowrap">Catalysts:</span>
+              <span className="text-sm font-bold text-purple-400 whitespace-nowrap">
+                {catalystCount > 0 ? 
+                  `${catalystCount} (${stockCount > 0 ? Math.round((catalystCount / stockCount) * 100) : 0}%)` 
+                  : '0 (0%)'
+                }
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-400">Updated:</span>
-              <span className="text-sm font-mono text-green-400">{lastUpdate}</span>
+            {/* Last Update */}
+            <div className="flex items-center space-x-2 bg-slate-800/20 rounded-md px-3 py-1.5 border border-slate-700/30">
+              <span className="text-xs text-slate-400 whitespace-nowrap">Updated:</span>
+              <span className="text-sm font-mono text-green-400 whitespace-nowrap">{lastUpdate}</span>
             </div>
 
             {/* Live Indicator */}
             {wsConnected && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center space-x-2 bg-green-900/20 rounded-md px-3 py-1.5 border border-green-700/30">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-sm font-bold text-green-400">LIVE</span>
+                <span className="text-sm font-bold text-green-400 whitespace-nowrap">LIVE</span>
               </div>
             )}
           </div>
 
-          {/* Right Side: Configuration + Status Indicators */}
-          <div className="flex items-center gap-8">
-            <div className="flex items-center gap-2">
-              <label htmlFor="maxFloat" className="text-sm text-slate-400">
+          {/* Right Section: Controls & Status with Proper Spacing */}
+          <div className="flex items-center space-x-6 flex-shrink-0">
+            
+            {/* Max Float Control */}
+            <div className="flex items-center space-x-2 bg-slate-800/30 rounded-lg px-3 py-2 border border-slate-700/50">
+              <label htmlFor="maxFloat" className="text-xs text-slate-400 whitespace-nowrap">
                 Max Float:
               </label>
               <select
                 id="maxFloat"
                 value={tempMaxFloat}
                 onChange={(e) => handleFloatChange(e.target.value)}
-                className="bg-slate-800 text-white px-2 py-1 rounded border border-slate-600 focus:border-cyan-400 focus:outline-none text-sm"
+                className="bg-slate-800 text-white px-2 py-1 rounded border border-slate-600 focus:border-cyan-400 focus:outline-none text-sm whitespace-nowrap"
               >
                 <option value="5M">5M</option>
                 <option value="10M">10M</option>
@@ -224,26 +238,31 @@ const StatusBar: React.FC<StatusBarProps> = ({
               </select>
             </div>
 
-            <button
-              onClick={testAlert}
-              className="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded text-sm transition-colors border border-slate-600 hover:border-slate-500"
-              title="Test alert system"
-            >
-              🧪 Test
-            </button>
+            {/* Test Button */}
+            <div className="bg-slate-800/30 rounded-lg px-3 py-2 border border-slate-700/50">
+              <button
+                onClick={testAlert}
+                className="px-3 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded text-sm transition-colors border border-slate-600 hover:border-slate-500 whitespace-nowrap"
+                title="Test alert system"
+              >
+                🧪 Test
+              </button>
+            </div>
 
             {/* Status Indicators */}
-            <div className="flex items-center gap-4 text-xs text-slate-500">
-              <div className="flex items-center gap-1">
+            <div className="flex items-center space-x-4 bg-slate-800/30 rounded-lg px-3 py-2 border border-slate-700/50">
+              <div className="flex items-center space-x-1.5">
                 <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
-                <span>⚡ WebSocket</span>
+                <span className="text-xs text-slate-500 whitespace-nowrap">⚡ WebSocket</span>
               </div>
               
-              <div className="flex items-center gap-1">
+              <div className="w-px h-4 bg-slate-600"></div>
+              
+              <div className="flex items-center space-x-1.5">
                 <div className={`w-2 h-2 rounded-full ${
                   isScanning ? 'bg-green-400' : 'bg-slate-400'
                 }`}></div>
-                <span>🔍 Scanner</span>
+                <span className="text-xs text-slate-500 whitespace-nowrap">🔍 Scanner</span>
               </div>
             </div>
           </div>
