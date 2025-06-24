@@ -38,6 +38,7 @@ export default function EnhancedScannerPage() {
         <Watchlist 
           stocks={scanner.stocks} 
           isLoading={scanner.isScanning && scanner.stocks.length === 0 && !scanner.wsConnected}
+          clearStocks={scanner.clearStocks}
         />
         
         {/* Enhanced Info Panels */}

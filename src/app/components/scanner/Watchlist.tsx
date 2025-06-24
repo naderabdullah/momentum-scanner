@@ -5,9 +5,10 @@ import { Stock } from '../../lib/types';
 interface WatchlistProps {
   stocks: Stock[];
   isLoading: boolean;
+  clearStocks: () => void;
 }
 
-const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading }) => {
+const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading, clearStocks }) => {
   const [sortBy, setSortBy] = useState<keyof Stock>('buy_score');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -119,6 +120,13 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading }) => {
               <span>✨</span>
               <span>All Features Active</span>
             </div>
+            <button
+              onClick={clearStocks}
+              className="text-slate-400 hover:text-white text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+              title="Clear watchlist"
+            >
+              🗑️
+            </button>
           </div>
         </div>
       </div>
@@ -126,7 +134,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading }) => {
       {/* FIX 3: Table with fixed height and scrolling */}
       <div className="flex-1 overflow-y-auto overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-700/50 sticky top-0">
+          <thead className="bg-slate-700 sticky top-0">
             <tr>
               <th 
                 className="px-3 py-3 text-left text-slate-300 font-medium cursor-pointer hover:text-white transition-colors"
@@ -290,7 +298,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading }) => {
 
       {/* FIXED: No stocks message - moved outside of scrolling container */}
       {stocks.length === 0 && !isLoading && (
-        <div className="text-center py-12">
+        <div className="text-center py-75">
           <div className="text-slate-400 mb-2">🔍 No stocks found</div>
           <div className="text-slate-500 text-sm">Start scanning to find momentum opportunities</div>
         </div>

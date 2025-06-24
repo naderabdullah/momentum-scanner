@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Stock, Alert, Level2Data, DetectedPattern, VolumeProfile } from '../lib/types';
 import { EnhancedPolygonScanner, getEnhancedPolygonScanner } from '../lib/enhanced-polygon-scanner';
 import { addAlertToDB, loadAlertsFromDB, clearAllAlertsFromDB, deleteAlertFromDB, cleanupOldAlerts } from '../lib/db';
+import { clear } from 'console';
 
 // Utility functions
 const parseHumanFloat = (value: string): number => {
@@ -61,7 +62,7 @@ const useEnhancedPolygonScanner = () => {
   const updateDisplayedStocks = useCallback(() => {
     const stockArray = Array.from(stockDataMap.current.values())
       .sort((a, b) => b.buy_score - a.buy_score)
-      .slice(0, 50);
+      .slice(0, 20);
     setStocks(stockArray);
   }, []);
 
@@ -265,6 +266,12 @@ const useEnhancedPolygonScanner = () => {
     setPatterns({});
   }, []);
 
+  const clearStocks = useCallback(() => {
+    stockDataMap.current.clear();
+    setStocks([]);
+    addAlert('info', 'SYSTEM', '🗑️ Watchlist cleared');
+  }, [addAlert]);
+
   // Update max float
   const updateMaxFloat = useCallback((value: string) => {
     setMaxFloat(value);
@@ -313,6 +320,7 @@ const useEnhancedPolygonScanner = () => {
     deleteAlert,
     clearLevel2Data,
     clearPatterns,
+    clearStocks,
     
     // Utility functions
     testAlert: () => addAlert('info', 'TEST', 'Test alert generated - all advanced features active'),

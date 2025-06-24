@@ -487,7 +487,7 @@ export class EnhancedPolygonScanner {
     });
 
     stocks.sort((a, b) => b.buy_score - a.buy_score);
-    this.onMarketScan?.(stocks.slice(0, 50));
+    this.onMarketScan?.(stocks.slice(0, 20));
   }
 
   // Public methods
