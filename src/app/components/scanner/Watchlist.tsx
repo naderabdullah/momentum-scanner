@@ -104,9 +104,9 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading }) => {
   }
 
   return (
-    <div className="lg:col-span-2 bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden">
+    <div className="lg:col-span-2 bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden flex flex-col h-[770px]">
       {/* Header */}
-      <div className="bg-slate-800/70 px-6 py-4 border-b border-slate-700">
+      <div className="bg-slate-800/70 px-6 py-4 border-b border-slate-700 flex-shrink-0">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold text-white">
             🎯 Live Stock Scanner
@@ -123,10 +123,10 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading }) => {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
+      {/* FIX 3: Table with fixed height and scrolling */}
+      <div className="flex-1 overflow-y-auto overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-slate-700/50">
+          <thead className="bg-slate-700/50 sticky top-0">
             <tr>
               <th 
                 className="px-3 py-3 text-left text-slate-300 font-medium cursor-pointer hover:text-white transition-colors"
@@ -152,52 +152,59 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading }) => {
               >
                 Rel Vol {sortBy === 'relVol' && (sortOrder === 'desc' ? '↓' : '↑')}
               </th>
-              <th className="px-3 py-3 text-left text-slate-300 font-medium">Criteria</th>
-              <th className="px-3 py-3 text-center text-slate-300 font-medium">News</th>
-              <th className="px-3 py-3 text-left text-slate-300 font-medium">Volume</th>
+              <th className="px-3 py-3 text-left text-slate-300 font-medium">
+                Criteria
+              </th>
+              <th className="px-3 py-3 text-center text-slate-300 font-medium">
+                News
+              </th>
+              <th className="px-3 py-3 text-right text-slate-300 font-medium">
+                Volume
+              </th>
               <th 
                 className="px-3 py-3 text-center text-slate-300 font-medium cursor-pointer hover:text-white transition-colors"
                 onClick={() => handleSort('buy_score')}
               >
                 Buy Score {sortBy === 'buy_score' && (sortOrder === 'desc' ? '↓' : '↑')}
               </th>
-              <th className="px-3 py-3 text-center text-slate-300 font-medium">Actions</th>
+              <th className="px-3 py-3 text-center text-slate-300 font-medium">
+                Actions
+              </th>
             </tr>
           </thead>
-          <tbody>
-            {sortedStocks.map((stock, index) => {
+          <tbody className="divide-y divide-slate-700/50">
+            {sortedStocks.map((stock) => {
+              const isPositive = stock.todaysChangePerc >= 0;
               const buyScoreStyle = getBuyScoreStyle(stock.buy_score);
               const criteria = getStockCriteria(stock);
-              const isPositive = stock.todaysChangePerc >= 0;
 
               return (
-                <tr 
-                  key={stock.ticker}
-                  className={`${index % 2 === 0 ? 'bg-slate-800/30' : 'bg-slate-800/50'} hover:bg-slate-700/50 transition-colors`}
-                >
+                <tr key={stock.ticker} className="hover:bg-slate-700/30 transition-colors">
                   {/* Symbol */}
                   <td className="px-3 py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col">
                       <span className="font-bold text-white">{stock.ticker}</span>
-                      {stock.hasCatalyst && (
-                        <span className="w-2 h-2 bg-amber-400 rounded-full" title="Has Catalyst"></span>
-                      )}
-                      {stock.volumeSurge && (
-                        <span className="text-red-400 text-xs">🔥</span>
-                      )}
+                      <div className="flex items-center gap-1 text-xs">
+                        <span className={`${stock.relVol >= 5 ? 'text-green-400' : 'text-slate-500'}`}>
+                          Vol: {stock.relVol.toFixed(1)}x
+                        </span>
+                        {stock.volumeSurge && (
+                          <span className="text-red-400">🔥</span>
+                        )}
+                      </div>
                     </div>
                   </td>
 
                   {/* Price */}
                   <td className="px-3 py-3">
-                    <div className="font-mono text-white">
+                    <div className="font-mono font-bold text-white">
                       {formatPrice(stock.price)}
                     </div>
                   </td>
 
                   {/* Change */}
                   <td className="px-3 py-3">
-                    <div className={`font-mono ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
+                    <div className={`font-bold ${isPositive ? 'text-green-400' : 'text-red-400'}`}>
                       {formatPercentage(stock.todaysChangePerc)}
                     </div>
                     <div className={`text-xs ${isPositive ? 'text-green-300' : 'text-red-300'}`}>
@@ -281,6 +288,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading }) => {
         </table>
       </div>
 
+      {/* FIXED: No stocks message - moved outside of scrolling container */}
       {stocks.length === 0 && !isLoading && (
         <div className="text-center py-12">
           <div className="text-slate-400 mb-2">🔍 No stocks found</div>

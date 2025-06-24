@@ -143,7 +143,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
                       : 'bg-slate-700 text-slate-400 cursor-not-allowed'
                   }`}
                 >
-                  🚀 Start Enhanced Scan
+                  🚀 Start  Scan
                 </button>
               ) : (
                 <button

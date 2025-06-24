@@ -110,11 +110,22 @@ const useEnhancedPolygonScanner = () => {
       addAlert('warning', 'SYSTEM', '⚠️ Please ensure your Polygon API key is valid');
     }
 
+    // FIX 2: Load alerts BEFORE setting up scanner callbacks
+    const initDB = async () => {
+      await cleanupOldAlerts();
+      const loadedAlerts = await loadAlertsFromDB();
+      if (loadedAlerts.length > 0) {
+        setAlerts(loadedAlerts.sort((a, b) => b.timestamp - a.timestamp));
+        console.log(`📂 Loaded ${loadedAlerts.length} alerts from database`);
+      }
+    };
+    initDB();
+
     try {
       console.log('🚀 Initializing Enhanced Polygon Scanner (All Features Enabled)...');
       scanner.current = getEnhancedPolygonScanner(apiKey);
       
-      // Set up enhanced callbacks
+      // Set up enhanced callbacks AFTER loading alerts
       scanner.current.onStockUpdate = (update: Partial<Stock>) => {
         if (!update.ticker) return;
         
@@ -201,14 +212,6 @@ const useEnhancedPolygonScanner = () => {
       return;
     }
 
-    // Load saved data
-    const initDB = async () => {
-      await cleanupOldAlerts();
-      const loadedAlerts = await loadAlertsFromDB();
-      setAlerts(loadedAlerts.sort((a, b) => b.timestamp - a.timestamp));
-    };
-    initDB();
-
     const storedFloat = localStorage.getItem('maxFloat');
     if (storedFloat) setMaxFloat(storedFloat);
 
@@ -220,10 +223,11 @@ const useEnhancedPolygonScanner = () => {
     };
   }, [addAlert, updateDisplayedStocks, updateLevel2Display, updatePatternsDisplay, checkAlerts]);
 
-  // Start scanning
+  // Start scanning - now calls scanner's startScanning method
   const startScanning = useCallback(() => {
     if (scanner.current && !isScanning) {
       setIsScanning(true);
+      scanner.current.startScanning(); // Call the scanner's method to actually start
       addAlert('info', 'SYSTEM', '🔍 Enhanced scanning started - all advanced features active');
       setMarketStatus({ status: 'SCANNING', color: 'text-blue-400' });
     }
@@ -231,20 +235,21 @@ const useEnhancedPolygonScanner = () => {
 
   // Stop scanning
   const stopScanning = useCallback(() => {
-    if (isScanning) {
+    if (isScanning && scanner.current) {
       setIsScanning(false);
+      scanner.current.stopScanning(); // Unsubscribe from market data
       addAlert('info', 'SYSTEM', '⏹️ Scanning stopped');
       setMarketStatus({ status: 'STOPPED', color: 'text-yellow-400' });
     }
   }, [isScanning, addAlert]);
 
-  // NEW: Delete individual alert function
+  // Delete individual alert function
   const deleteAlert = useCallback(async (alertId: number) => {
     setAlerts(prev => prev.filter(alert => alert.id !== alertId));
     await deleteAlertFromDB(alertId);
   }, []);
 
-  // Updated: Clear functions with database operations
+  // Clear functions with database operations
   const clearAlerts = useCallback(async () => {
     setAlerts([]);
     await clearAllAlertsFromDB();
@@ -272,9 +277,8 @@ const useEnhancedPolygonScanner = () => {
     }
   }, [addAlert]);
 
-  // Get API call count (enhanced tracking)
+  // Get API call count
   const getApiCalls = useCallback(() => {
-    // This would be tracked by the enhanced scanner
     return 0; // Placeholder
   }, []);
 
@@ -306,7 +310,7 @@ const useEnhancedPolygonScanner = () => {
     setMaxFloat: updateMaxFloat,
     addAlert,
     clearAlerts,
-    deleteAlert, // NEW: Individual alert deletion
+    deleteAlert,
     clearLevel2Data,
     clearPatterns,
     

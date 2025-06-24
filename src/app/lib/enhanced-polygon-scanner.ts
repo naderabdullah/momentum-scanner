@@ -54,17 +54,8 @@ interface WebSocketMessage {
   message?: string;
 }
 
-interface PolygonWebSocket {
-  onopen?: (event: Event) => void;
-  onmessage?: (event: { data: string }) => void;
-  onclose?: (event: CloseEvent) => void;
-  onerror?: (event: Event) => void;
-  send: (data: string) => void;
-  close: () => void;
-}
-
 export class EnhancedPolygonScanner {
-  private stocksWS: PolygonWebSocket | null = null;
+  private stocksWS: any = null;
   private apiKey: string;
   private restClient: unknown = null;
   private _isConnected: boolean = false;
@@ -97,18 +88,15 @@ export class EnhancedPolygonScanner {
   public onVolumeSurge?: (ticker: string, surge: VolumeProfile) => void;
 
   constructor(apiKey: string, criteria?: Partial<ScanningCriteria>) {
-    // Validate API key
     if (!apiKey || apiKey.trim() === '') {
       throw new Error('Polygon API key is required');
     }
     this.apiKey = apiKey;
 
-    // Initialize Polygon clients
     try {
       const polygonClient = websocketClient(apiKey, 'wss://socket.polygon.io');
       this.stocksWS = polygonClient.stocks();
       
-      // Import REST client for scanning
       import("@polygon.io/client-js").then(({ restClient }) => {
         this.restClient = restClient(apiKey);
       }).catch(error => {
@@ -119,34 +107,31 @@ export class EnhancedPolygonScanner {
       throw error;
     }
 
-    // Enhanced buy score criteria based on user requirements
     this.buyScoreCriteria = {
-      relativeVolumeWeight: 30,  // 30% weight - target >5x
-      priceChangeWeight: 25,     // 25% weight - target >10%
-      floatWeight: 20,           // 20% weight - target <20M
-      priceRangeWeight: 10,      // 10% weight - target $2-$20
-      newsCatalystWeight: 10,    // 10% weight - has news
-      patternWeight: 3,          // 3% weight - technical patterns
-      volumeSurgeWeight: 2,      // 2% weight - volume surge
-      level2Weight: 0,           // 0% weight - not implemented yet
-      momentumWeight: 0          // 0% weight - not implemented yet
+      relativeVolumeWeight: 30,
+      priceChangeWeight: 25,
+      floatWeight: 20,
+      priceRangeWeight: 10,
+      newsCatalystWeight: 10,
+      patternWeight: 3,
+      volumeSurgeWeight: 2,
+      level2Weight: 0,
+      momentumWeight: 0
     };
 
-    // Default scanning criteria
     this.scanningCriteria = {
-      minVolume: 500000,         // 500K minimum volume
-      minRelativeVolume: 5,      // 5x relative volume
-      minPriceChangePercent: 10, // 10% minimum change
-      minPrice: 2,               // $2 minimum
-      maxPrice: 20,              // $20 maximum  
-      maxFloat: 20000000,        // 20M max float (user specified)
-      requireNews: false,        // Don't require news by default
+      minVolume: 500000,
+      minRelativeVolume: 5,
+      minPriceChangePercent: 10,
+      minPrice: 2,
+      maxPrice: 20,
+      maxFloat: 20000000,
+      requireNews: false,
       ...criteria
     };
 
     this.patternRecognizer = AdvancedPatternRecognizer.getInstance();
     
-    // Delay WebSocket setup to avoid initialization issues
     setTimeout(() => {
       this.setupWebSocket();
     }, 1000);
@@ -167,8 +152,8 @@ export class EnhancedPolygonScanner {
         this._isConnected = true;
         this.reconnectAttempts = 0;
         this.onConnectionChange?.(true);
-        this.subscribeToMarketData();
-        this.startRealTimeScanning();
+        // Only authenticate, don't subscribe to data until scanning starts
+        this.authenticateConnection();
       };
 
       this.stocksWS.onmessage = ({ data }: { data: string }) => {
@@ -190,12 +175,10 @@ export class EnhancedPolygonScanner {
         this._isConnected = false;
         this.onConnectionChange?.(false);
         
-        // Clear any existing reconnect timeout
         if (this.reconnectTimeout) {
           clearTimeout(this.reconnectTimeout);
         }
         
-        // Only attempt reconnection if we haven't exceeded max attempts
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           const delay = Math.min(5000 * Math.pow(2, this.reconnectAttempts), 30000);
           console.log(`🔄 Attempting to reconnect in ${delay/1000}s... (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
@@ -220,11 +203,8 @@ export class EnhancedPolygonScanner {
     }
   }
 
-  private subscribeToMarketData() {
-    if (!this.stocksWS) {
-      console.error('❌ Cannot subscribe: WebSocket not initialized');
-      return;
-    }
+  private authenticateConnection() {
+    if (!this.stocksWS) return;
 
     try {
       const authMessage = {
@@ -232,15 +212,23 @@ export class EnhancedPolygonScanner {
         params: this.apiKey
       };
       console.log('🔐 Sending authentication message...');
-      this.stocksWS!.send(JSON.stringify(authMessage));
+      this.stocksWS.send(JSON.stringify(authMessage));
+    } catch (error) {
+      console.error('❌ Failed to authenticate:', error);
+    }
+  }
 
-      console.log('📡 Subscribing to ALL advanced market data streams...');
+  private subscribeToMarketData() {
+    if (!this.stocksWS) return;
+
+    try {
+      console.log('📡 Subscribing to market data streams...');
       
       const subscriptions = [
         'T.*',   // All trades
         'AM.*',  // All minute aggregates
-        'Q.*',   // All quotes (Level 2)
-        'A.*'    // All second aggregates for pattern detection
+        'Q.*',   // All quotes
+        'A.*'    // All second aggregates
       ];
 
       const subscribeMessage = {
@@ -248,12 +236,29 @@ export class EnhancedPolygonScanner {
         params: subscriptions.join(',')
       };
 
-      console.log('📤 Sending advanced subscription message:', subscribeMessage);
-      this.stocksWS!.send(JSON.stringify(subscribeMessage));
-      
+      this.stocksWS.send(JSON.stringify(subscribeMessage));
     } catch (error) {
       console.error('❌ Failed to subscribe to market data:', error);
-      this.onError?.('Failed to subscribe to market data');
+    }
+  }
+
+  private unsubscribeFromMarketData() {
+    if (!this.stocksWS) return;
+
+    try {
+      console.log('📡 Unsubscribing from market data streams...');
+      
+      const subscriptions = ['T.*', 'AM.*', 'Q.*', 'A.*'];
+
+      subscriptions.forEach(sub => {
+        const unsubscribeMessage = {
+          action: 'unsubscribe',
+          params: sub
+        };
+        this.stocksWS.send(JSON.stringify(unsubscribeMessage));
+      });
+    } catch (error) {
+      console.error('❌ Failed to unsubscribe from market data:', error);
     }
   }
 
@@ -264,50 +269,29 @@ export class EnhancedPolygonScanner {
       case 'status':
         this.handleStatusMessage(message);
         break;
-      case 'T': // Trade
+      case 'T':
         this.handleTradeMessage(message);
         break;
-      case 'AM': // Minute aggregate
+      case 'AM':
         this.handleAggregateMessage(message);
         break;
-      case 'Q': // Quote (Level 2)
+      case 'Q':
         this.handleQuoteMessage(message);
         break;
-      case 'A': // Second aggregate
+      case 'A':
         this.handleSecondAggregateMessage(message);
         break;
     }
   }
 
   private handleStatusMessage(message: WebSocketMessage) {
-    console.log('📊 WebSocket Status:', message);
-
     if (message.status === 'auth_success') {
       console.log('✅ Authentication successful');
       this.onAlert?.({
         id: Date.now() + Math.random(),
         severity: 'info',
         ticker: 'SYSTEM',
-        message: '🔐 Authentication successful - all advanced features active',
-        timestamp: Date.now()
-      });
-    } else if (message.status === 'success') {
-      // Handle successful subscription messages
-      this.onAlert?.({
-        id: Date.now() + Math.random(),
-        severity: 'info',
-        ticker: 'SYSTEM',
-        message: `✅ Successfully subscribed: ${message.message}`,
-        timestamp: Date.now()
-      });
-    } else if (message.status === 'error') {
-      // Handle error messages from Polygon
-      console.error('❌ Polygon WebSocket Error:', message.message);
-      this.onAlert?.({
-        id: Date.now() + Math.random(),
-        severity: 'critical',
-        ticker: 'SYSTEM',
-        message: `❌ Subscription Error: ${message.message}. Your API key plan may not have permission for this data.`,
+        message: '🔐 Authentication successful - ready to scan',
         timestamp: Date.now()
       });
     }
@@ -335,9 +319,6 @@ export class EnhancedPolygonScanner {
 
     this.marketMetrics.set(ticker, trade);
     this.updateStockData(ticker, trade);
-    
-    // Advanced volume surge detection
-    this.checkVolumeSurge(ticker, trade);
   }
 
   private handleAggregateMessage(message: WebSocketMessage) {
@@ -348,7 +329,7 @@ export class EnhancedPolygonScanner {
       ticker,
       price: message.c,
       volume: message.v,
-      volumeRatio: message.v / (1), // Would need average volume data
+      volumeRatio: message.v / 1000000, // Simplified
       priceChangePercent: ((message.c - message.o) / message.o) * 100,
       dayOpen: message.o,
       dayHigh: message.h || message.c,
@@ -361,9 +342,6 @@ export class EnhancedPolygonScanner {
 
     this.marketMetrics.set(ticker, aggregate);
     this.updateStockData(ticker, aggregate);
-    
-    // Advanced pattern recognition
-    this.runPatternRecognition(ticker, aggregate);
   }
 
   private handleQuoteMessage(message: WebSocketMessage) {
@@ -379,8 +357,7 @@ export class EnhancedPolygonScanner {
       spread: message.ap - message.bp,
       spreadPercent: ((message.ap - message.bp) / message.bp) * 100,
       timestamp: message.t || Date.now(),
-      orderFlow: this.calculateOrderFlow(message),
-      imbalance: (message.bs - message.as) / (message.bs + message.as)
+      orderFlow: message.bs > message.as ? 'buying' : message.as > message.bs ? 'selling' : 'neutral'
     };
 
     this.level2Cache.set(ticker, level2Data);
@@ -388,64 +365,7 @@ export class EnhancedPolygonScanner {
   }
 
   private handleSecondAggregateMessage(message: WebSocketMessage) {
-    // Use second aggregates for more granular pattern detection
-    const ticker = message.sym;
-    if (!ticker || !message.o || !message.h || !message.l || !message.c || !message.v) return;
-
-    const candlestick: CandlestickData = {
-      timestamp: message.t || Date.now(),
-      open: message.o,
-      high: message.h,
-      low: message.l,
-      close: message.c,
-      volume: message.v
-    };
-
-    const existing = this.marketMetrics.get(ticker);
-    if (existing) {
-      existing.candlestickData.push(candlestick);
-      // Keep only last 100 candles for pattern recognition
-      if (existing.candlestickData.length > 100) {
-        existing.candlestickData = existing.candlestickData.slice(-100);
-      }
-      this.marketMetrics.set(ticker, existing);
-    }
-  }
-
-  private calculateOrderFlow(quote: WebSocketMessage): 'buying' | 'selling' | 'neutral' {
-    const bidSize = quote.bs || 0;
-    const askSize = quote.as || 0;
-    const ratio = bidSize / (askSize || 1);
-    
-    if (ratio > 1.2) return 'buying';
-    if (ratio < 0.8) return 'selling';
-    return 'neutral';
-  }
-
-  private checkVolumeSurge(ticker: string, metrics: MarketMetrics) {
-    if (metrics.volumeRatio > 5) { // 5x volume surge
-      const surge: VolumeProfile = {
-        ticker,
-        todayVolume: metrics.volume,
-        avgVolume30D: metrics.volume / metrics.volumeRatio,
-        relativeVolume: metrics.volumeRatio,
-        volumeSpikes: [metrics.volume],
-        unusualActivity: true,
-        institutionalFlow: 0
-      };
-      
-      this.volumeProfiles.set(ticker, surge);
-      this.onVolumeSurge?.(ticker, surge);
-    }
-  }
-
-  private runPatternRecognition(ticker: string, metrics: MarketMetrics) {
-    if (metrics.candlestickData.length < 10) return;
-
-    const patterns = this.patternRecognizer.detectAllPatterns(ticker, metrics.candlestickData);
-    patterns.forEach((pattern: DetectedPattern) => {
-      this.onPatternDetected?.(ticker, pattern);
-    });
+    this.handleAggregateMessage(message);
   }
 
   private updateStockData(ticker: string, metrics: MarketMetrics) {
@@ -465,14 +385,14 @@ export class EnhancedPolygonScanner {
         vw: metrics.vwap
       },
       relVol: metrics.volumeRatio,
+      float: 0,
       buy_score: buyScore,
-      volumeSurge: metrics.volumeRatio > 5,
-      hasCatalyst: this.checkForCatalyst(ticker)
+      hasCatalyst: this.checkForCatalyst(ticker),
+      volumeSurge: metrics.volumeRatio > 5
     };
 
     this.onStockUpdate?.(stock);
     
-    // Check if stock meets scanning criteria for alerts
     if (this.meetsAlertCriteria(metrics, buyScore)) {
       this.onAlert?.({
         id: Date.now() + Math.random(),
@@ -488,15 +408,12 @@ export class EnhancedPolygonScanner {
     let score = 0;
     const criteria = this.buyScoreCriteria;
 
-    // Relative volume score (target >5x)
     const relVolScore = Math.min(100, (metrics.volumeRatio / 5) * 100);
     score += (relVolScore * criteria.relativeVolumeWeight) / 100;
 
-    // Price change score (target >10%)
     const priceChangeScore = Math.min(100, (Math.abs(metrics.priceChangePercent) / 10) * 100);
     score += (priceChangeScore * criteria.priceChangeWeight) / 100;
 
-    // Price range score ($2-$20 preferred)
     let priceRangeScore = 0;
     if (metrics.price >= 2 && metrics.price <= 20) {
       priceRangeScore = 100;
@@ -507,26 +424,11 @@ export class EnhancedPolygonScanner {
     }
     score += (priceRangeScore * criteria.priceRangeWeight) / 100;
 
-    // Volume surge bonus
     if (metrics.volumeRatio > 5) {
       score += criteria.volumeSurgeWeight;
     }
 
-    // Pattern recognition bonus
-    const patterns = this.patternRecognizer.detectAllPatterns(metrics.ticker, metrics.candlestickData);
-    if (patterns.length > 0) {
-      const avgConfidence = patterns.reduce((sum: number, p: DetectedPattern) => sum + p.confidence, 0) / patterns.length;
-      score += (avgConfidence / 100) * criteria.patternWeight;
-    }
-
     return Math.min(100, score);
-  }
-
-  private checkForCatalyst(ticker: string): boolean {
-    // This would check for news catalysts
-    // For now, return true for high-volume stocks
-    const metrics = this.marketMetrics.get(ticker);
-    return metrics ? metrics.volumeRatio > 3 : false;
   }
 
   private meetsAlertCriteria(metrics: MarketMetrics, buyScore: number): boolean {
@@ -539,10 +441,14 @@ export class EnhancedPolygonScanner {
     );
   }
 
+  private checkForCatalyst(ticker: string): boolean {
+    const metrics = this.marketMetrics.get(ticker);
+    return metrics ? metrics.volumeRatio > 3 : false;
+  }
+
   private startRealTimeScanning() {
-    console.log('🚀 Starting real-time advanced scanning...');
+    console.log('🚀 Starting real-time scanning...');
     
-    // Scan every 15 seconds
     setInterval(() => {
       this.performMarketScan();
     }, this.scanInterval);
@@ -572,7 +478,7 @@ export class EnhancedPolygonScanner {
           vw: metrics.vwap
         },
         relVol: metrics.volumeRatio,
-        float: 0, // Would need to fetch from API
+        float: 0,
         buy_score: buyScore,
         hasCatalyst: this.checkForCatalyst(ticker),
         volumeSurge: metrics.volumeRatio > 5
@@ -580,10 +486,8 @@ export class EnhancedPolygonScanner {
       stocks.push(stock);
     });
 
-    // Sort by buy score
     stocks.sort((a, b) => b.buy_score - a.buy_score);
-    
-    this.onMarketScan?.(stocks.slice(0, 50)); // Top 50 stocks
+    this.onMarketScan?.(stocks.slice(0, 50));
   }
 
   // Public methods
@@ -625,6 +529,16 @@ export class EnhancedPolygonScanner {
 
   public getVolumeProfiles(): Map<string, VolumeProfile> {
     return this.volumeProfiles;
+  }
+
+  public startScanning(): void {
+    this.subscribeToMarketData();
+    this.startRealTimeScanning();
+  }
+
+  public stopScanning(): void {
+    this.unsubscribeFromMarketData();
+    console.log('⏹️ Stopped scanning and unsubscribed from market data');
   }
 
   public cleanup(): void {
