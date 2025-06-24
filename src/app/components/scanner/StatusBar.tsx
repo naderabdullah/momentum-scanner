@@ -8,15 +8,28 @@ interface StatusBarProps {
   catalystCount: number;
   lastUpdate: string;
   wsConnected: boolean;
+  // Controls props
+  isScanning: boolean;
+  startScan: () => void;
+  stopScan: () => void;
+  maxFloat: string;
+  setMaxFloat: (value: string) => void;
+  testAlert: () => void;
 }
 
 const StatusBar: React.FC<StatusBarProps> = ({
-  marketStatus,
   stockCount,
   catalystCount,
   lastUpdate,
   wsConnected,
+  isScanning,
+  startScan,
+  stopScan,
+  maxFloat,
+  setMaxFloat,
+  testAlert
 }) => {
+  const [tempMaxFloat, setTempMaxFloat] = useState(maxFloat);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [marketSession, setMarketSession] = useState<'pre' | 'regular' | 'after' | 'closed'>('closed');
   const [isClientMounted, setIsClientMounted] = useState(false);
@@ -56,16 +69,12 @@ const StatusBar: React.FC<StatusBarProps> = ({
       }
       
       const currentMinutes = hours * 60 + minutes;
-      const preMarketStart = 4 * 60; // 4:00 AM
-      const regularStart = 9 * 60 + 30; // 9:30 AM
-      const regularEnd = 16 * 60; // 4:00 PM
-      const afterEnd = 20 * 60; // 8:00 PM
       
-      if (currentMinutes >= preMarketStart && currentMinutes < regularStart) {
+      if (currentMinutes >= 240 && currentMinutes < 570) {
         setMarketSession('pre');
-      } else if (currentMinutes >= regularStart && currentMinutes < regularEnd) {
+      } else if (currentMinutes >= 570 && currentMinutes < 960) {
         setMarketSession('regular');
-      } else if (currentMinutes >= regularEnd && currentMinutes < afterEnd) {
+      } else if (currentMinutes >= 960 && currentMinutes < 1200) {
         setMarketSession('after');
       } else {
         setMarketSession('closed');
@@ -73,9 +82,8 @@ const StatusBar: React.FC<StatusBarProps> = ({
     };
 
     updateMarketSession();
-    const interval = setInterval(updateMarketSession, 60000); // Update every minute
-
-    return () => clearInterval(interval);
+    const timer = setInterval(updateMarketSession, 60000);
+    return () => clearInterval(timer);
   }, [isClientMounted]);
 
   const getMarketSessionDisplay = () => {
@@ -91,143 +99,151 @@ const StatusBar: React.FC<StatusBarProps> = ({
     }
   };
 
-  const getConnectionHealth = () => {
-    if (!wsConnected) return { text: 'DISCONNECTED', color: 'text-red-400', icon: '❌' };
-    return { text: 'STREAMING', color: 'text-green-400', icon: '📡' };
+  const handleFloatChange = (value: string) => {
+    setTempMaxFloat(value);
+    setMaxFloat(value);
   };
 
-  const formatTime = (date: Date | null) => {
-    if (!date || !isClientMounted) return '--:--:--';
-    return date.toLocaleTimeString('en-US', { 
-      hour12: false, 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      second: '2-digit' 
-    });
+  const getConnectionStatus = () => {
+    if (!wsConnected) return { text: '🔴 DISCONNECTED', color: 'text-red-400' };
+    if (isScanning) return { text: '🟢 SCANNING', color: 'text-green-400' };
+    return { text: '🟡 CONNECTED', color: 'text-yellow-400' };
   };
 
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-    return num.toString();
-  };
-
-  const marketSessionInfo = getMarketSessionDisplay();
-  const connectionHealth = getConnectionHealth();
-
-  // Show loading state during hydration
-  if (!isClientMounted) {
+  // Don't render until client-side
+  if (!isClientMounted || !currentTime) {
     return (
-      <div className="bg-slate-900/90 backdrop-filter backdrop-blur-lg border-b border-slate-800 py-3 px-4 sticky top-[129px] z-10">
+      <div className="sticky top-[73px] z-10 bg-slate-900/95 backdrop-filter backdrop-blur-lg border-b border-slate-800 p-4">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-center">
-            <div className="animate-pulse text-slate-400">Loading status...</div>
-          </div>
+          <div className="text-center text-slate-400">Loading status...</div>
         </div>
       </div>
     );
   }
 
+  const connectionStatus = getConnectionStatus();
+  const marketDisplay = getMarketSessionDisplay();
+
   return (
-    <div className="bg-slate-900/90 backdrop-filter backdrop-blur-lg border-b border-slate-800 py-3 px-4 sticky top-[129px] z-10">
+    <div className="sticky top-[73px] z-10 bg-slate-900/95 backdrop-filter backdrop-blur-lg border-b border-slate-800 p-2">
       <div className="max-w-7xl mx-auto">
-        {/* Main Status Row */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          {/* Left Side: Market Status */}
+        {/* Main Combined Row */}
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
+          {/* Left Side: Scan Controls + Connection Status */}
           <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <span className="text-lg">{marketSessionInfo.icon}</span>
-              <div>
-                <div className={`text-sm font-bold ${marketSessionInfo.color}`}>
-                  {marketSessionInfo.text}
-                </div>
-                <div className="text-xs text-slate-400">
-                  ET: {formatTime(currentTime ? new Date(currentTime.toLocaleString("en-US", {timeZone: "America/New_York"})) : null)}
-                </div>
-              </div>
-            </div>
+            <div className="flex items-center gap-3">
+              {!isScanning ? (
+                <button
+                  onClick={startScan}
+                  disabled={!wsConnected}
+                  className={`px-4 py-2 rounded-lg font-bold transition-all duration-200 ${
+                    wsConnected
+                      ? 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white shadow-lg hover:shadow-green-500/25'
+                      : 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  🚀 Start Enhanced Scan
+                </button>
+              ) : (
+                <button
+                  onClick={stopScan}
+                  className="px-4 py-2 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white rounded-lg font-bold transition-all duration-200 shadow-lg hover:shadow-red-500/25"
+                >
+                  ⏹️ Stop Scan
+                </button>
+              )}
 
-            <div className="h-8 w-px bg-slate-700"></div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-lg">{connectionHealth.icon}</span>
-              <div>
-                <div className={`text-sm font-bold ${connectionHealth.color}`}>
-                  {connectionHealth.text}
-                </div>
-                <div className="text-xs text-slate-400">
-                  WebSocket Feed
-                </div>
-              </div>
+              <span className={`text-sm font-bold ${connectionStatus.color}`}>
+                {connectionStatus.text}
+              </span>
             </div>
           </div>
 
-          {/* Center: Key Metrics */}
-          <div className="flex items-center gap-6">
-            <div className="text-center">
-              <div className="text-xl font-bold text-cyan-400">{stockCount}</div>
-              <div className="text-xs text-slate-400">Stocks Tracked</div>
+          {/* Center: Market Status + Performance Metrics */}
+          <div className="flex items-center gap-12">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-400">EST:</span>
+              <span className="text-sm font-bold text-white">
+                {currentTime.toLocaleTimeString('en-US', { 
+                  hour12: false, 
+                  timeZone: 'America/New_York' 
+                })}
+              </span>
             </div>
 
-            <div className="text-center">
-              <div className="text-xl font-bold text-amber-400">{catalystCount}</div>
-              <div className="text-xs text-slate-400">With Catalysts</div>
+            <div className="flex items-center gap-2">
+              <span className={`text-sm font-bold ${marketDisplay.color}`}>
+                {marketDisplay.icon} {marketDisplay.text}
+              </span>
             </div>
 
-            <div className="text-center">
-              <div className="text-xl font-bold text-green-400">
-                {stockCount > 0 ? Math.round((catalystCount / stockCount) * 100) : 0}%
-              </div>
-              <div className="text-xs text-slate-400">Catalyst Rate</div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-400">Stocks:</span>
+              <span className="text-sm font-bold text-cyan-400">{stockCount}</span>
             </div>
-          </div>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-400">Catalysts:</span>
+              <span className="text-sm font-bold text-purple-400">
+                {catalystCount > 0 ? Math.round((catalystCount / stockCount) * 100) : 0}%
+              </span>
+            </div>
 
-          {/* Right Side: System Info */}
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <div className="text-sm font-mono text-slate-300">
-                Last Update: <span className="text-green-400">{lastUpdate}</span>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-400">Updated:</span>
+              <span className="text-sm font-mono text-green-400">{lastUpdate}</span>
             </div>
 
             {/* Live Indicator */}
             {wsConnected && (
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                 <span className="text-sm font-bold text-green-400">LIVE</span>
               </div>
             )}
           </div>
-        </div>
 
-        {/* Performance Indicators */}
-        <div className="mt-3 pt-3 border-t border-slate-800/50">
-          <div className="flex items-center justify-between text-xs text-slate-500">
-            <div className="flex items-center gap-6">
-              <span>🚀 Enhanced Momentum Scanner v2.0</span>
-              <span>⚡ Real-time WebSocket streaming</span>
-              <span>🎯 Advanced buy score algorithm</span>
-              <span>🤖 AI pattern detection</span>
+          {/* Right Side: Configuration + Status Indicators */}
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-2">
+              <label htmlFor="maxFloat" className="text-sm text-slate-400">
+                Max Float:
+              </label>
+              <select
+                id="maxFloat"
+                value={tempMaxFloat}
+                onChange={(e) => handleFloatChange(e.target.value)}
+                className="bg-slate-800 text-white px-2 py-1 rounded border border-slate-600 focus:border-cyan-400 focus:outline-none text-sm"
+              >
+                <option value="5M">5M</option>
+                <option value="10M">10M</option>
+                <option value="20M">20M</option>
+                <option value="50M">50M</option>
+                <option value="100M">100M</option>
+                <option value="500M">500M</option>
+              </select>
             </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+
+            <button
+              onClick={testAlert}
+              className="px-2 py-1 bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white rounded text-sm transition-colors border border-slate-600 hover:border-slate-500"
+              title="Test alert system"
+            >
+              🧪 Test
+            </button>
+
+            {/* Status Indicators */}
+            <div className="flex items-center gap-4 text-xs text-slate-500">
+              <div className="flex items-center gap-1">
                 <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-400' : 'bg-red-400'}`}></div>
-                <span>WebSocket</span>
+                <span>⚡ WebSocket</span>
               </div>
               
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <div className={`w-2 h-2 rounded-full ${
-                  marketSession === 'regular' ? 'bg-green-400' : 
-                  marketSession === 'pre' || marketSession === 'after' ? 'bg-amber-400' : 
-                  'bg-slate-400'
+                  isScanning ? 'bg-green-400' : 'bg-slate-400'
                 }`}></div>
-                <span>Market</span>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${stockCount > 0 ? 'bg-green-400' : 'bg-slate-400'}`}></div>
-                <span>Scanner</span>
+                <span>🔍 Scanner</span>
               </div>
             </div>
           </div>

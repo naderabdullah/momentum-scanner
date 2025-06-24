@@ -2,80 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Stock, Alert, Level2Data, DetectedPattern, VolumeProfile } from '../lib/types';
 import { EnhancedPolygonScanner, getEnhancedPolygonScanner } from '../lib/enhanced-polygon-scanner';
-
-// Database functions for alerts
-const DB_NAME = 'StockScannerDB';
-const DB_VERSION = 1;
-const ALERT_STORE = 'alerts';
-
-const openDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(ALERT_STORE)) {
-        const store = db.createObjectStore(ALERT_STORE, { keyPath: 'id' });
-        store.createIndex('timestamp', 'timestamp', { unique: false });
-        store.createIndex('ticker', 'ticker', { unique: false });
-      }
-    };
-  });
-};
-
-const addAlertToDB = async (alert: Alert): Promise<void> => {
-  try {
-    const db = await openDB();
-    const transaction = db.transaction([ALERT_STORE], 'readwrite');
-    const store = transaction.objectStore(ALERT_STORE);
-    await store.add(alert);
-  } catch (error) {
-    console.warn('Failed to save alert to database:', error);
-  }
-};
-
-const loadAlertsFromDB = async (): Promise<Alert[]> => {
-  try {
-    const db = await openDB();
-    const transaction = db.transaction([ALERT_STORE], 'readonly');
-    const store = transaction.objectStore(ALERT_STORE);
-    const request = store.getAll();
-    
-    return new Promise((resolve, reject) => {
-      request.onsuccess = () => resolve(request.result || []);
-      request.onerror = () => reject(request.error);
-    });
-  } catch (error) {
-    console.warn('Failed to load alerts from database:', error);
-    return [];
-  }
-};
-
-const cleanupOldAlerts = async (): Promise<void> => {
-  try {
-    const db = await openDB();
-    const transaction = db.transaction([ALERT_STORE], 'readwrite');
-    const store = transaction.objectStore(ALERT_STORE);
-    const index = store.index('timestamp');
-    
-    const twoDaysAgo = Date.now() - (2 * 24 * 60 * 60 * 1000);
-    const range = IDBKeyRange.upperBound(twoDaysAgo);
-    
-    const request = index.openCursor(range);
-    request.onsuccess = (event) => {
-      const cursor = (event.target as IDBRequest).result;
-      if (cursor) {
-        cursor.delete();
-        cursor.continue();
-      }
-    };
-  } catch (error) {
-    console.warn('Failed to cleanup old alerts:', error);
-  }
-};
+import { addAlertToDB, loadAlertsFromDB, clearAllAlertsFromDB, deleteAlertFromDB, cleanupOldAlerts } from '../lib/db';
 
 // Utility functions
 const parseHumanFloat = (value: string): number => {
@@ -133,7 +60,6 @@ const useEnhancedPolygonScanner = () => {
 
   const updateDisplayedStocks = useCallback(() => {
     const stockArray = Array.from(stockDataMap.current.values())
-      //.filter(stock => stock.buy_score > 50)
       .sort((a, b) => b.buy_score - a.buy_score)
       .slice(0, 50);
     setStocks(stockArray);
@@ -312,9 +238,16 @@ const useEnhancedPolygonScanner = () => {
     }
   }, [isScanning, addAlert]);
 
-  // Clear functions
-  const clearAlerts = useCallback(() => {
+  // NEW: Delete individual alert function
+  const deleteAlert = useCallback(async (alertId: number) => {
+    setAlerts(prev => prev.filter(alert => alert.id !== alertId));
+    await deleteAlertFromDB(alertId);
+  }, []);
+
+  // Updated: Clear functions with database operations
+  const clearAlerts = useCallback(async () => {
     setAlerts([]);
+    await clearAllAlertsFromDB();
   }, []);
 
   const clearLevel2Data = useCallback(() => {
@@ -373,6 +306,7 @@ const useEnhancedPolygonScanner = () => {
     setMaxFloat: updateMaxFloat,
     addAlert,
     clearAlerts,
+    deleteAlert, // NEW: Individual alert deletion
     clearLevel2Data,
     clearPatterns,
     

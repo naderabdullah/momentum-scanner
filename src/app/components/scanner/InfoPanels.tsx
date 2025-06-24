@@ -7,6 +7,7 @@ interface InfoPanelsProps {
   level2Data: Level2Data[];
   patterns: PatternData;
   clearAlerts: () => void;
+  deleteAlert: (alertId: number) => void; // NEW: Individual alert deletion
   clearLevel2Data: () => void;
   clearPatterns: () => void;
 }
@@ -16,6 +17,7 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
   level2Data, 
   patterns, 
   clearAlerts, 
+  deleteAlert, // NEW
   clearLevel2Data, 
   clearPatterns 
 }) => {
@@ -67,7 +69,7 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Alerts Panel */}
+      {/* Alerts Panel - REMOVED max-h-64 */}
       <div className="bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden">
         <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700">
           <div className="flex items-center justify-between">
@@ -100,7 +102,7 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
           </div>
         </div>
 
-        <div className="p-4 max-h-64 overflow-y-auto">
+        <div className="p-4 h-44 overflow-y-auto">
           <div className="space-y-2">
             {filteredAlerts.slice(0, 10).map((alert) => (
               <div
@@ -116,13 +118,26 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
                       {formatAlertTime(alert.timestamp)}
                     </span>
                   </div>
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    alert.severity === 'critical' ? 'bg-red-900 text-red-400' :
-                    alert.severity === 'warning' ? 'bg-yellow-900 text-yellow-400' :
-                    'bg-blue-900 text-blue-400'
-                  }`}>
-                    {alert.severity.toUpperCase()}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      alert.severity === 'critical' ? 'bg-red-900 text-red-400' :
+                      alert.severity === 'warning' ? 'bg-yellow-900 text-yellow-400' :
+                      'bg-blue-900 text-blue-400'
+                    }`}>
+                      {alert.severity.toUpperCase()}
+                    </span>
+                    {/* NEW: Individual delete button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteAlert(alert.id);
+                      }}
+                      className="text-slate-400 hover:text-red-400 text-xs px-1 py-0.5 hover:bg-slate-600 rounded transition-colors"
+                      title="Delete alert"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
                 <p className="text-slate-300 text-sm mt-1">{alert.message}</p>
               </div>
@@ -137,7 +152,7 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
         </div>
       </div>
 
-      {/* Level 2 Panel */}
+      {/* Level 2 Panel - REMOVED max-h-64 */}
       <div className="bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden">
         <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700">
           <div className="flex items-center justify-between">
@@ -158,7 +173,7 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
           </div>
         </div>
 
-        <div className="p-4 max-h-64 overflow-y-auto">
+        <div className="p-4 h-42 overflow-y-auto">
           <div className="space-y-3">
             {level2Data.slice(0, 5).map((data, index) => (
               <div key={`${data.ticker}-${index}`} className="bg-slate-700/50 rounded-lg p-3">
@@ -168,12 +183,9 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
                     <span className={`px-2 py-1 rounded text-xs font-medium ${
                       data.orderFlow === 'buying' ? 'bg-green-900 text-green-400' :
                       data.orderFlow === 'selling' ? 'bg-red-900 text-red-400' :
-                      'bg-slate-600 text-slate-300'
+                      'bg-slate-900 text-slate-400'
                     }`}>
                       {getOrderFlowText(data.orderFlow)}
-                    </span>
-                    <span className="text-xs text-slate-400">
-                      {formatAlertTime(data.timestamp)}
                     </span>
                   </div>
                 </div>
@@ -181,25 +193,26 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <div className="text-slate-400 text-xs">Bid</div>
-                    <div className="text-green-400 font-mono text-sm">
-                      ${data.bid_price?.toFixed(2)} x {data.bid_size?.toLocaleString()}
+                    <div className="text-green-400 font-mono">
+                      ${data.bid_price.toFixed(2)} × {data.bid_size}
                     </div>
                   </div>
                   <div>
                     <div className="text-slate-400 text-xs">Ask</div>
-                    <div className="text-red-400 font-mono text-sm">
-                      ${data.ask_price?.toFixed(2)} x {data.ask_size?.toLocaleString()}
+                    <div className="text-red-400 font-mono">
+                      ${data.ask_price.toFixed(2)} × {data.ask_size}
                     </div>
                   </div>
                   <div>
                     <div className="text-slate-400 text-xs">Spread</div>
-                    <div className="text-white font-mono text-sm">
-                      ${data.spread?.toFixed(3)} ({data.spreadPercent?.toFixed(2)}%)
+                    <div className="text-yellow-400 font-mono">
+                      ${data.spread.toFixed(3)} ({data.spreadPercent.toFixed(2)}%)
                     </div>
                   </div>
                   <div>
                     <div className="text-slate-400 text-xs">Imbalance</div>
-                    <div className={`font-mono text-sm ${data.imbalance && data.imbalance > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <div className={`font-mono ${(data.imbalance || 0) > 0 ? 
+                      'text-green-400' : 'text-red-400'}`}>
                       {((data.imbalance || 0) * 100).toFixed(1)}%
                     </div>
                   </div>
@@ -216,7 +229,7 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
         </div>
       </div>
 
-      {/* Patterns Panel */}
+      {/* Patterns Panel - REMOVED max-h-64 */}
       <div className="bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden">
         <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700">
           <div className="flex items-center justify-between">
@@ -237,7 +250,7 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
           </div>
         </div>
 
-        <div className="p-4 max-h-64 overflow-y-auto">
+        <div className="p-4 h-58 overflow-y-auto">
           <div className="space-y-3">
             {Object.entries(patterns).slice(0, 5).map(([ticker, patternList]) => (
               <div key={ticker} className="bg-slate-700/50 rounded-lg p-3">

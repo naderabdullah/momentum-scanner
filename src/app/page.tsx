@@ -3,7 +3,6 @@
 
 import React from 'react';
 import Header from './components/scanner/Header';
-import Controls from './components/scanner/Controls';
 import StatusBar from './components/scanner/StatusBar';
 import Watchlist from './components/scanner/Watchlist';
 import InfoPanels from './components/scanner/InfoPanels';
@@ -17,18 +16,7 @@ export default function EnhancedScannerPage() {
       {/* Enhanced Header */}
       <Header />
       
-      {/* Enhanced Controls */}
-      <Controls
-        isScanning={scanner.isScanning}
-        startScan={scanner.startScanning}
-        stopScan={scanner.stopScanning}
-        maxFloat={scanner.maxFloat}
-        setMaxFloat={scanner.setMaxFloat}
-        testAlert={scanner.testAlert}
-        wsConnected={scanner.wsConnected}
-      />
-      
-      {/* Enhanced Status Bar */}
+      {/* Enhanced StatusBar (with integrated Controls) */}
       <StatusBar
         marketStatus={scanner.marketStatus}
         stockCount={scanner.stocks.length}
@@ -36,6 +24,12 @@ export default function EnhancedScannerPage() {
         catalystCount={scanner.catalystCount}
         lastUpdate={scanner.lastUpdate}
         wsConnected={scanner.wsConnected}
+        isScanning={scanner.isScanning}
+        startScan={scanner.startScanning}
+        stopScan={scanner.stopScanning}
+        maxFloat={scanner.maxFloat}
+        setMaxFloat={scanner.setMaxFloat}
+        testAlert={scanner.testAlert}
       />
       
       {/* Main Content Grid */}
@@ -52,6 +46,7 @@ export default function EnhancedScannerPage() {
           level2Data={scanner.level2Data}
           patterns={scanner.patterns}
           clearAlerts={scanner.clearAlerts}
+          deleteAlert={scanner.deleteAlert}
           clearLevel2Data={scanner.clearLevel2Data}
           clearPatterns={scanner.clearPatterns}
         />
@@ -69,30 +64,30 @@ export default function EnhancedScannerPage() {
             <div className="bg-slate-800/50 rounded-lg p-3">
               <div className="text-green-400 font-bold mb-1">📊 Relative Volume (30%)</div>
               <div className="text-slate-300">Target: <span className="text-green-400">5x+</span></div>
-              <div className="text-slate-400 text-xs">Higher volume indicates momentum</div>
+              <div className="text-slate-400 text-xs">Higher volume indicates increased interest</div>
             </div>
             
             <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-blue-400 font-bold mb-1">📈 Price Change (25%)</div>
-              <div className="text-slate-300">Target: <span className="text-blue-400">10%+</span></div>
-              <div className="text-slate-400 text-xs">Strong price movement</div>
+              <div className="text-blue-400 font-bold mb-1">💹 Price Action (25%)</div>
+              <div className="text-slate-300">Target: <span className="text-blue-400">+15%+</span></div>
+              <div className="text-slate-400 text-xs">Strong upward momentum preferred</div>
             </div>
             
             <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-purple-400 font-bold mb-1">🏢 Float Size (20%)</div>
-              <div className="text-slate-300">Target: <span className="text-purple-400">&lt;20M</span></div>
-              <div className="text-slate-400 text-xs">Lower float = higher volatility</div>
+              <div className="text-purple-400 font-bold mb-1">📰 Catalyst Presence (20%)</div>
+              <div className="text-slate-300">Status: <span className="text-purple-400">Required</span></div>
+              <div className="text-slate-400 text-xs">News or events driving movement</div>
             </div>
             
             <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-orange-400 font-bold mb-1">💰 Price Range (10%)</div>
-              <div className="text-slate-300">Target: <span className="text-orange-400">$2-$20</span></div>
-              <div className="text-slate-400 text-xs">Optimal momentum range</div>
+              <div className="text-amber-400 font-bold mb-1">🏢 Float Size (25%)</div>
+              <div className="text-slate-300">Target: <span className="text-amber-400">&lt;20M</span></div>
+              <div className="text-slate-400 text-xs">Lower float = higher volatility potential</div>
             </div>
           </div>
           
-          <div className="mt-4 text-center text-slate-400 text-xs">
-            <p>✨ All advanced features are enabled by default - Level 2 data, Pattern Recognition, Volume Surge Detection, and more!</p>
+          <div className="text-center mt-4 text-xs text-slate-500">
+            Scores update in real-time based on current market conditions and technical indicators
           </div>
         </div>
       </footer>

@@ -52,30 +52,39 @@ export const loadAlertsFromDB = async (): Promise<Alert[]> => {
   return [];
 };
 
-// --- NEW: Function to clear all alerts from IndexedDB ---
+// --- NEW: Function to delete individual alert from IndexedDB ---
+export const deleteAlertFromDB = async (alertId: number) => {
+  const db = getDbInstance();
+  if (db) {
+    const dbInstance = await db;
+    await dbInstance.delete(ALERT_STORE_NAME, alertId);
+  }
+};
+
+// --- Function to clear all alerts from IndexedDB ---
 export const clearAllAlertsFromDB = async () => {
-    const db = getDbInstance();
-    if (db) {
-        const dbInstance = await db;
-        await dbInstance.clear(ALERT_STORE_NAME);
-    }
+  const db = getDbInstance();
+  if (db) {
+    const dbInstance = await db;
+    await dbInstance.clear(ALERT_STORE_NAME);
+  }
 };
 
 export const cleanupOldAlerts = async () => {
-    const db = getDbInstance();
-    if (!db) return;
+  const db = getDbInstance();
+  if (!db) return;
 
-    const dbInstance = await db;
-    const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
-    const tx = dbInstance.transaction(ALERT_STORE_NAME, 'readwrite');
-    const store = tx.objectStore(ALERT_STORE_NAME);
-    let cursor = await store.openCursor();
+  const dbInstance = await db;
+  const eightHoursAgo = Date.now() - 8 * 60 * 60 * 1000;
+  const tx = dbInstance.transaction(ALERT_STORE_NAME, 'readwrite');
+  const store = tx.objectStore(ALERT_STORE_NAME);
+  let cursor = await store.openCursor();
 
-    while(cursor) {
-      if (cursor.value.timestamp < eightHoursAgo) {
-        await cursor.delete();
-      }
-      cursor = await cursor.continue();
+  while(cursor) {
+    if (cursor.value.timestamp < eightHoursAgo) {
+      await cursor.delete();
     }
-    await tx.done;
+    cursor = await cursor.continue();
+  }
+  await tx.done;
 };
