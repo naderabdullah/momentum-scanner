@@ -48,22 +48,6 @@ export default function EnhancedScannerPage() {
         testAlert={scanner.testAlert}
       />
       
-      {/* Debug Info Bar - Shows real-time status (client-side only) */}
-      {isClientSide && process.env.NODE_ENV === 'development' && (
-        <div className="bg-slate-900/80 border-b border-slate-700 px-4 py-2">
-          <div className="max-w-7xl mx-auto flex justify-between items-center text-xs text-slate-400">
-            <span>🔧 Debug Mode</span>
-            <div className="flex gap-4">
-              <span>Render Key: {(scanner as any).renderKey || 'N/A'}</span>
-              <span>Stocks: {scanner.stocks.length}</span>
-              <span>Last Update: {scanner.lastUpdate}</span>
-              <span>WS: {scanner.wsConnected ? '✅' : '❌'}</span>
-              <span>Scanning: {scanner.isScanning ? '🔄' : '⏸️'}</span>
-            </div>
-          </div>
-        </div>
-      )}
-      
       {/* Main Content Grid */}
       <main className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
         {/* Enhanced Real-Time Watchlist */}
