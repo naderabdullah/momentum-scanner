@@ -152,7 +152,9 @@ export class EnhancedPolygonScanner {
 
   private setupWebSocket() {
     try {
-      console.log('🔌 Setting up Enhanced Polygon WebSocket connection...');
+      if (!this.isConnected) {
+        console.log('🔌 Setting up Enhanced Polygon WebSocket connection...');
+      }
       
       if (!this.stocksWS) {
         console.error('❌ Cannot setup WebSocket: stocksWS is null');

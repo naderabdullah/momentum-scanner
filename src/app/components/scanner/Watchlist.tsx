@@ -44,7 +44,6 @@ const Watchlist: React.FC<WatchlistProps> = ({
     const interval = setInterval(() => {
       setForceUpdate(prev => prev + 1);
       setCurrentTime(new Date().toLocaleTimeString()); // Update time client-side only
-      console.log(`🔄 Forced watchlist re-render #${forceUpdate + 1} at ${new Date().toLocaleTimeString()}`);
     }, 1000);
 
     return () => clearInterval(interval);
