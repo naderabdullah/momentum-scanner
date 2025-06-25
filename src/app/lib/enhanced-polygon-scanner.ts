@@ -754,7 +754,7 @@ export class EnhancedPolygonScanner {
     }
 
     // FIXED: Filter by YOUR ORIGINAL threshold (70+ score)
-    const filteredStocks = stocks.filter(stock => stock.buy_score >= 10);
+    const filteredStocks = stocks.filter(stock => stock.buy_score >= 60);
     filteredStocks.sort((a, b) => b.buy_score - a.buy_score);
     
     console.log(`📊 Market scan results:
