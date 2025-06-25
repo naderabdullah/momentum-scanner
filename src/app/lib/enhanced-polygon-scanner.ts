@@ -44,6 +44,7 @@ interface WebSocketMessage {
   c?: number;
   v?: number;
   o?: number;
+  op?: number;
   h?: number;
   l?: number;
   vw?: number;
@@ -319,14 +320,14 @@ export class EnhancedPolygonScanner {
 
   private handleAggregateMessage(message: WebSocketMessage) {
     const ticker = message.sym;
-    if (!ticker || !message.c || !message.v || !message.o) return;
+    if (!ticker || !message.c || !message.v || !message.op) return;
 
     this.processAggregateData(ticker, message, true);
   }
 
   private handleSecondAggregateMessage(message: WebSocketMessage) {
     const ticker = message.sym;
-    if (!ticker || !message.c || !message.v || !message.o) return;
+    if (!ticker || !message.c || !message.v || !message.op) return;
 
     this.processAggregateData(ticker, message, false);
   }
@@ -388,8 +389,8 @@ export class EnhancedPolygonScanner {
       price: message.c!,
       volume: message.v!,
       volumeRatio: properVolumeRatio, // FIXED: Now calculated properly
-      priceChangePercent: ((message.c! - message.o!) / message.o!) * 100,
-      dayOpen: message.o!,
+      priceChangePercent: ((message.c! - message.op!) / message.op!) * 100,
+      dayOpen: message.op!,
       dayHigh: message.h || message.c!,
       dayLow: message.l || message.c!,
       vwap: message.vw || message.c!,
@@ -401,8 +402,8 @@ export class EnhancedPolygonScanner {
     };
 
     // DEBUG: Log high rel vol stocks
-    if (properVolumeRatio > 3) {
-      console.log(`🔥 HIGH REL VOL: ${ticker} - Current: ${message.v!.toLocaleString()}, Avg: ${averageVolume.toLocaleString()}, Ratio: ${properVolumeRatio.toFixed(2)}x`);
+    if (properVolumeRatio > 5) {
+      console.log(`🔥 HIGH REL VOL: ${ticker} - Current: ${message.v!.toLocaleString()}, Avg: ${averageVolume.toLocaleString()}, Ratio: ${properVolumeRatio.toFixed(2)}x, Day Change: ${aggregate.priceChangePercent.toFixed(2)}%`);
     }
 
     if (this.shouldProcessStock(aggregate)) {
@@ -508,7 +509,7 @@ export class EnhancedPolygonScanner {
     score += (relVolScore * criteria.relativeVolumeWeight) / 100;
 
     // Price Change (25% weight, target: >10%) - YOUR ORIGINAL THRESHOLD
-    const priceChangeScore = Math.min(100, (Math.abs(metrics.priceChangePercent) / 10) * 100);
+    const priceChangeScore = Math.min(100, (metrics.priceChangePercent) / 10) * 100;
     score += (priceChangeScore * criteria.priceChangeWeight) / 100;
 
     // Float Score (20% weight, target: <20M) - YOUR ORIGINAL THRESHOLD
