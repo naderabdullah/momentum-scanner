@@ -1,7 +1,7 @@
 // src/app/page.tsx
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import Header from './components/scanner/Header';
 import StatusBar from './components/scanner/StatusBar';
 import Watchlist from './components/scanner/Watchlist';
@@ -10,6 +10,14 @@ import useEnhancedPolygonScanner from './hooks/useEnhancedPolygonScanner';
 
 export default function EnhancedScannerPage() {
   const scanner = useEnhancedPolygonScanner();
+  
+  // NEW: State for selected stock for L2 display
+  const [selectedStock, setSelectedStock] = useState<string | null>(null);
+
+  // NEW: Handler for L2 button clicks
+  const handleShowLevel2 = (ticker: string) => {
+    setSelectedStock(ticker);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-slate-300">
@@ -39,6 +47,7 @@ export default function EnhancedScannerPage() {
           stocks={scanner.stocks} 
           isLoading={scanner.isScanning && scanner.stocks.length === 0 && !scanner.wsConnected}
           clearStocks={scanner.clearStocks}
+          onShowLevel2={handleShowLevel2} // NEW: Pass L2 handler
         />
         
         {/* Enhanced Info Panels */}
@@ -46,10 +55,11 @@ export default function EnhancedScannerPage() {
           alerts={scanner.alerts}
           level2Data={scanner.level2Data}
           patterns={scanner.patterns}
+          selectedStock={selectedStock} // NEW: Pass selected stock
           clearAlerts={scanner.clearAlerts}
           deleteAlert={scanner.deleteAlert}
-          clearLevel2Data={scanner.clearLevel2Data}
           clearPatterns={scanner.clearPatterns}
+          // REMOVED: clearLevel2Data - no longer needed
         />
       </main>
       
@@ -69,26 +79,22 @@ export default function EnhancedScannerPage() {
             </div>
             
             <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-blue-400 font-bold mb-1">💹 Price Action (25%)</div>
-              <div className="text-slate-300">Target: <span className="text-blue-400">+15%+</span></div>
-              <div className="text-slate-400 text-xs">Strong upward momentum preferred</div>
+              <div className="text-blue-400 font-bold mb-1">📈 Price Change (25%)</div>
+              <div className="text-slate-300">Target: <span className="text-green-400">10%+</span></div>
+              <div className="text-slate-400 text-xs">Strong momentum signals</div>
             </div>
             
             <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-purple-400 font-bold mb-1">📰 Catalyst Presence (20%)</div>
-              <div className="text-slate-300">Status: <span className="text-purple-400">Required</span></div>
-              <div className="text-slate-400 text-xs">News or events driving movement</div>
-            </div>
-            
-            <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-amber-400 font-bold mb-1">🏢 Float Size (25%)</div>
-              <div className="text-slate-300">Target: <span className="text-amber-400">&lt;20M</span></div>
+              <div className="text-purple-400 font-bold mb-1">🏢 Float Size (20%)</div>
+              <div className="text-slate-300">Target: <span className="text-green-400">&lt;20M</span></div>
               <div className="text-slate-400 text-xs">Lower float = higher volatility potential</div>
             </div>
-          </div>
-          
-          <div className="text-center mt-4 text-xs text-slate-500">
-            Scores update in real-time based on current market conditions and technical indicators
+            
+            <div className="bg-slate-800/50 rounded-lg p-3">
+              <div className="text-amber-400 font-bold mb-1">💰 Price Range (15%)</div>
+              <div className="text-slate-300">Target: <span className="text-green-400">$2-$20</span></div>
+              <div className="text-slate-400 text-xs">Optimal risk/reward balance</div>
+            </div>
           </div>
         </div>
       </footer>

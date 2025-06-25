@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Stock, Alert, Level2Data, DetectedPattern, VolumeProfile } from '../lib/types';
 import { EnhancedPolygonScanner, getEnhancedPolygonScanner } from '../lib/enhanced-polygon-scanner';
 import { addAlertToDB, loadAlertsFromDB, clearAllAlertsFromDB, deleteAlertFromDB, cleanupOldAlerts } from '../lib/db';
-import { clear } from 'console';
 
 // Utility functions
 const parseHumanFloat = (value: string): number => {
@@ -111,7 +110,7 @@ const useEnhancedPolygonScanner = () => {
       addAlert('warning', 'SYSTEM', '⚠️ Please ensure your Polygon API key is valid');
     }
 
-    // FIX 2: Load alerts BEFORE setting up scanner callbacks
+    // Load alerts BEFORE setting up scanner callbacks
     const initDB = async () => {
       await cleanupOldAlerts();
       const loadedAlerts = await loadAlertsFromDB();
@@ -130,15 +129,29 @@ const useEnhancedPolygonScanner = () => {
       scanner.current.onStockUpdate = (update: Partial<Stock>) => {
         if (!update.ticker) return;
         
-        const existing = stockDataMap.current.get(update.ticker) || {} as Stock;
-        const updated = { ...existing, ...update } as Stock;
+        const existing = stockDataMap.current.get(update.ticker);
+        const updatedStock: Stock = {
+          ...existing,
+          ...update,
+          ticker: update.ticker,
+          price: update.price || existing?.price || 0,
+          buy_score: update.buy_score || existing?.buy_score || 0,
+          relVol: update.relVol || existing?.relVol || 0,
+          todaysChangePerc: update.todaysChangePerc || existing?.todaysChangePerc || 0,
+          day: update.day || existing?.day || { v: 0, o: 0, h: 0, l: 0, c: 0, vw: 0 },
+          float: update.float || existing?.float || 0,
+          hasCatalyst: update.hasCatalyst || existing?.hasCatalyst || false,
+          volumeSurge: update.volumeSurge || existing?.volumeSurge || false,
+          todaysChange: update.todaysChange || existing?.todaysChange || 0,
+        };
         
-        stockDataMap.current.set(update.ticker, updated);
+        if (existing) {
+          checkAlerts(updatedStock, existing);
+        }
+        
+        stockDataMap.current.set(update.ticker, updatedStock);
         updateDisplayedStocks();
         setLastUpdate(new Date().toLocaleTimeString());
-        
-        // Check for alerts
-        checkAlerts(updated, existing);
       };
 
       scanner.current.onLevel2Update = (data: Level2Data) => {
@@ -147,50 +160,28 @@ const useEnhancedPolygonScanner = () => {
       };
 
       scanner.current.onAlert = (alert: Alert) => {
-        setAlerts(prev => [alert, ...prev.slice(0, 99)]); // Keep last 100 alerts
-        addAlertToDB(alert);
+        addAlert(alert.severity, alert.ticker, alert.message);
       };
 
       scanner.current.onConnectionChange = (connected: boolean) => {
         setWsConnected(connected);
-        if (connected) {
-          addAlert('info', 'SYSTEM', '🚀 Connected to Enhanced Polygon WebSocket - All Features Active');
-          setMarketStatus({ status: 'CONNECTED', color: 'text-green-400' });
-        } else {
-          addAlert('warning', 'SYSTEM', '⚠️ Disconnected from Polygon WebSocket');
-          setMarketStatus({ status: 'DISCONNECTED', color: 'text-red-400' });
-        }
-      };
-
-      scanner.current.onError = (error: string) => {
-        addAlert('critical', 'SYSTEM', `Scanner error: ${error}`);
-        setMarketStatus({ status: 'ERROR', color: 'text-red-400' });
-      };
-
-      scanner.current.onMarketScan = (stocks: Stock[]) => {
-        // Update stock data from market scan
-        stocks.forEach(stock => {
-          stockDataMap.current.set(stock.ticker, stock);
-        });
-        updateDisplayedStocks();
-        setWatchlistSize(scanner.current?.getWatchlistSize() || 0);
-        addAlert('info', 'SCAN', `📊 Market scan complete - tracking ${stocks.length} stocks`);
+        setMarketStatus(connected 
+          ? { status: 'CONNECTED', color: 'text-green-400' }
+          : { status: 'DISCONNECTED', color: 'text-red-400' }
+        );
       };
 
       scanner.current.onPatternDetected = (ticker: string, pattern: DetectedPattern) => {
-        const existing = patternMap.current.get(ticker) || [];
-        const updated = [...existing, pattern];
-        patternMap.current.set(ticker, updated);
+        const patterns = patternMap.current.get(ticker) || [];
+        patterns.push(pattern);
+        patternMap.current.set(ticker, patterns);
         updatePatternsDisplay();
         
-        // High-confidence pattern alert
-        if (pattern.confidence > 80) {
-          addAlert('info', ticker, `🎯 ${pattern.name} detected (${pattern.confidence.toFixed(0)}% confidence)`);
-        }
+        addAlert('info', ticker, `🎯 Pattern detected: ${pattern.name}`);
       };
 
       scanner.current.onVolumeSurge = (ticker: string, surge: VolumeProfile) => {
-        addAlert('warning', ticker, `📈 Volume surge! ${surge.relativeVolume.toFixed(1)}x average volume`);
+        addAlert('warning', ticker, `📈 Volume surge detected: ${surge.relativeVolume.toFixed(1)}x average volume`);
       };
 
       // Connect to WebSocket
@@ -256,11 +247,6 @@ const useEnhancedPolygonScanner = () => {
     await clearAllAlertsFromDB();
   }, []);
 
-  const clearLevel2Data = useCallback(() => {
-    level2Map.current.clear();
-    setLevel2Data([]);
-  }, []);
-
   const clearPatterns = useCallback(() => {
     patternMap.current.clear();
     setPatterns({});
@@ -318,7 +304,6 @@ const useEnhancedPolygonScanner = () => {
     addAlert,
     clearAlerts,
     deleteAlert,
-    clearLevel2Data,
     clearPatterns,
     clearStocks,
     

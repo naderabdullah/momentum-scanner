@@ -6,9 +6,15 @@ interface WatchlistProps {
   stocks: Stock[];
   isLoading: boolean;
   clearStocks: () => void;
+  onShowLevel2: (ticker: string) => void; // NEW: Callback for L2 button click
 }
 
-const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading, clearStocks }) => {
+const Watchlist: React.FC<WatchlistProps> = ({ 
+  stocks, 
+  isLoading, 
+  clearStocks, 
+  onShowLevel2 // NEW
+}) => {
   const [sortBy, setSortBy] = useState<keyof Stock>('buy_score');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
@@ -105,7 +111,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading, clearStocks })
   }
 
   return (
-    <div className="lg:col-span-2 bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden flex flex-col h-[770px]">
+    <div className="lg:col-span-2 bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden flex flex-col h-[700px]">
       {/* Header */}
       <div className="bg-slate-800/70 px-6 py-4 border-b border-slate-700 flex-shrink-0">
         <div className="flex items-center justify-between">
@@ -131,7 +137,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading, clearStocks })
         </div>
       </div>
 
-      {/* FIX 3: Table with fixed height and scrolling */}
+      {/* Table with fixed height and scrolling */}
       <div className="flex-1 overflow-y-auto overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-700 sticky top-0">
@@ -193,7 +199,8 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading, clearStocks })
                     <div className="flex flex-col">
                       <span className="font-bold text-white">{stock.ticker}</span>
                       <div className="flex items-center gap-1 text-xs">
-                        <span className={`${stock.relVol >= 5 ? 'text-green-400' : 'text-slate-500'}`}>
+                        <span className={`${stock.relVol >= 5 ? 
+                          'text-green-400' : 'text-slate-500'}`}>
                           Vol: {stock.relVol.toFixed(1)}x
                         </span>
                         {stock.volumeSurge && (
@@ -281,7 +288,12 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading, clearStocks })
                   {/* Actions */}
                   <td className="px-3 py-3 text-center">
                     <div className="flex items-center justify-center gap-1">
-                      <button className="text-cyan-400 hover:text-cyan-300 text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors">
+                      {/* UPDATED: Added click handler to L2 button */}
+                      <button 
+                        onClick={() => onShowLevel2(stock.ticker)}
+                        className="text-cyan-400 hover:text-cyan-300 text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
+                        title={`Show Level 2 data for ${stock.ticker}`}
+                      >
                         📊 L2
                       </button>
                       <button className="text-purple-400 hover:text-purple-300 text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors">
@@ -296,7 +308,7 @@ const Watchlist: React.FC<WatchlistProps> = ({ stocks, isLoading, clearStocks })
         </table>
       </div>
 
-      {/* FIXED: No stocks message - moved outside of scrolling container */}
+      {/* No stocks message */}
       {stocks.length === 0 && !isLoading && (
         <div className="text-center py-75">
           <div className="text-slate-400 mb-2">🔍 No stocks found</div>

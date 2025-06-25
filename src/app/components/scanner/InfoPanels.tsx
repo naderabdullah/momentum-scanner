@@ -6,9 +6,9 @@ interface InfoPanelsProps {
   alerts: Alert[];
   level2Data: Level2Data[];
   patterns: PatternData;
+  selectedStock: string | null; // NEW: Selected stock for L2 display
   clearAlerts: () => void;
-  deleteAlert: (alertId: number) => void; // NEW: Individual alert deletion
-  clearLevel2Data: () => void;
+  deleteAlert: (alertId: number) => void;
   clearPatterns: () => void;
 }
 
@@ -16,9 +16,9 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
   alerts, 
   level2Data, 
   patterns, 
+  selectedStock, // NEW
   clearAlerts, 
-  deleteAlert, // NEW
-  clearLevel2Data, 
+  deleteAlert,
   clearPatterns 
 }) => {
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
@@ -28,6 +28,11 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
   const filteredAlerts = alerts.filter(alert => 
     filterSeverity === 'all' || alert.severity === filterSeverity
   );
+
+  // NEW: Filter L2 data for selected stock only
+  const selectedStockL2Data = selectedStock 
+    ? level2Data.filter(data => data.ticker === selectedStock)
+    : [];
 
   const formatAlertTime = (timestamp: number): string => {
     return new Date(timestamp).toLocaleTimeString('en-US', { 
@@ -69,7 +74,7 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Alerts Panel - REMOVED max-h-64 */}
+      {/* Alerts Panel */}
       <div className="bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden">
         <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700">
           <div className="flex items-center justify-between">
@@ -126,7 +131,6 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
                     }`}>
                       {alert.severity.toUpperCase()}
                     </span>
-                    {/* NEW: Individual delete button */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -152,84 +156,111 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
         </div>
       </div>
 
-      {/* Level 2 Panel - REMOVED max-h-64 */}
+      {/* Level 2 Panel - UPDATED: Now shows data for selected stock only */}
       <div className="bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden">
         <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
-              📊 Level 2 Order Flow
-              {level2Data.length > 0 && (
+              📊 Level 2 Data
+              {selectedStock && (
                 <span className="bg-cyan-500 text-white text-xs px-2 py-0.5 rounded-full">
-                  {level2Data.length}
+                  {selectedStock}
                 </span>
               )}
             </h3>
-            <button
-              onClick={clearLevel2Data}
-              className="text-slate-400 hover:text-white text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
-            >
-              🗑️
-            </button>
+            {/* REMOVED: Clear button - no longer needed */}
           </div>
         </div>
 
-        <div className="p-4 h-42 overflow-y-auto">
+        <div className="p-4 h-57 overflow-y-auto">
           <div className="space-y-3">
-            {level2Data.slice(0, 5).map((data, index) => (
-              <div key={`${data.ticker}-${index}`} className="bg-slate-700/50 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium text-white">{data.ticker}</h4>
+            {!selectedStock && (
+              <div className="text-center py-6 text-slate-400 text-sm">
+                <div className="text-slate-400 mb-2">📊 Select a stock to view Level 2 data</div>
+                <div className="text-slate-500 text-xs">Click the "📊 L2" button on any stock in the watchlist</div>
+              </div>
+            )}
+
+            {selectedStock && selectedStockL2Data.length === 0 && (
+              <div className="text-center py-6 text-slate-400 text-sm">
+                <div className="text-slate-400 mb-2">No Level 2 data available for {selectedStock}</div>
+                <div className="text-slate-500 text-xs">Data will appear here when available</div>
+              </div>
+            )}
+
+            {selectedStockL2Data.map((data, index) => (
+              <div key={`${data.ticker}-${index}`} className="bg-gradient-to-r from-slate-700/30 to-slate-600/30 rounded-lg p-4 border border-slate-600/50 hover:border-cyan-500/30 transition-all duration-200">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-bold text-white text-lg flex items-center gap-2">
+                    📊 {data.ticker}
+                    <span className="text-cyan-400 text-sm font-normal">Level II</span>
+                  </h4>
                   <div className="flex items-center gap-2">
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      data.orderFlow === 'buying' ? 'bg-green-900 text-green-400' :
-                      data.orderFlow === 'selling' ? 'bg-red-900 text-red-400' :
-                      'bg-slate-900 text-slate-400'
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                      data.orderFlow === 'buying' ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white' :
+                      data.orderFlow === 'selling' ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white' :
+                      'bg-gradient-to-r from-slate-600 to-slate-700 text-slate-300'
                     }`}>
                       {getOrderFlowText(data.orderFlow)}
+                    </span>
+                    <span className="text-xs text-slate-400 bg-slate-800/50 px-2 py-1 rounded">
+                      {new Date(data.timestamp).toLocaleTimeString()}
                     </span>
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div>
-                    <div className="text-slate-400 text-xs">Bid</div>
-                    <div className="text-green-400 font-mono">
-                      ${data.bid_price.toFixed(2)} × {data.bid_size}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-800/50 rounded-lg p-3 border-l-4 border-blue-500">
+                    <div className="text-blue-400 text-xs font-semibold mb-1 flex items-center gap-1">
+                      💰 BID/ASK SPREAD
+                    </div>
+                    <div className="text-white font-mono text-lg font-bold">
+                      <span className="text-green-400">${data.bid_price?.toFixed(2)}</span>
+                      <span className="text-slate-500 mx-2">/</span>
+                      <span className="text-red-400">${data.ask_price?.toFixed(2)}</span>
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">
+                      Spread: <span className="text-amber-400">${(data.spread || 0).toFixed(3)}</span>
                     </div>
                   </div>
-                  <div>
-                    <div className="text-slate-400 text-xs">Ask</div>
-                    <div className="text-red-400 font-mono">
-                      ${data.ask_price.toFixed(2)} × {data.ask_size}
+                  
+                  <div className="bg-slate-800/50 rounded-lg p-3 border-l-4 border-purple-500">
+                    <div className="text-purple-400 text-xs font-semibold mb-1 flex items-center gap-1">
+                      ⚖️ ORDER IMBALANCE
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-slate-400 text-xs">Spread</div>
-                    <div className="text-yellow-400 font-mono">
-                      ${data.spread.toFixed(3)} ({data.spreadPercent.toFixed(2)}%)
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-slate-400 text-xs">Imbalance</div>
-                    <div className={`font-mono ${(data.imbalance || 0) > 0 ? 
-                      'text-green-400' : 'text-red-400'}`}>
+                    <div className={`font-mono text-lg font-bold ${
+                      data.imbalance && data.imbalance > 0 ? 'text-green-400' : 
+                      data.imbalance && data.imbalance < 0 ? 'text-red-400' : 
+                      'text-slate-400'
+                    }`}>
                       {((data.imbalance || 0) * 100).toFixed(1)}%
                     </div>
+                    <div className="text-xs text-slate-400 mt-1">
+                      {data.imbalance && data.imbalance > 0 ? '🟢 Buy Pressure' : 
+                       data.imbalance && data.imbalance < 0 ? '🔴 Sell Pressure' : 
+                       '⚪ Balanced'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 text-slate-400">
+                    <span>📈 Sizes:</span>
+                    <span className="text-green-400">{data.bid_size} bid</span>
+                    <span className="text-slate-500">×</span>
+                    <span className="text-red-400">{data.ask_size} ask</span>
+                  </div>
+                  <div className="text-slate-400">
+                    💹 Spread: <span className="text-amber-400">{(data.spreadPercent || 0).toFixed(2)}%</span>
                   </div>
                 </div>
               </div>
             ))}
-            
-            {level2Data.length === 0 && (
-              <div className="text-center py-6 text-slate-400 text-sm">
-                No Level 2 data available
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      {/* Patterns Panel - REMOVED max-h-64 */}
+      {/* Patterns Panel */}
       <div className="bg-slate-800/50 backdrop-filter backdrop-blur-lg rounded-xl border border-slate-700 overflow-hidden">
         <div className="bg-slate-800/70 px-4 py-3 border-b border-slate-700">
           <div className="flex items-center justify-between">
@@ -250,7 +281,7 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
           </div>
         </div>
 
-        <div className="p-4 h-58 overflow-y-auto">
+        <div className="p-4 h-25 overflow-y-auto">
           <div className="space-y-3">
             {Object.entries(patterns).slice(0, 5).map(([ticker, patternList]) => (
               <div key={ticker} className="bg-slate-700/50 rounded-lg p-3">
