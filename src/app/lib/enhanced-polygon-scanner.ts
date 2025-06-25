@@ -36,23 +36,36 @@ interface CachedData<T> {
 }
 
 interface WebSocketMessage {
-  ev: string;
-  sym?: string;
+  ev: string;           // Event type (A, AM, Q, etc.)
+  sym?: string;         // Ticker symbol
+  
+  // Correct Polygon Aggregates Response attributes
+  v?: number;           // The tick volume (volume for this specific tick/bar)
+  av?: number;          // Today's accumulated volume (TOTAL volume for the day)
+  op?: number;          // Today's official opening price
+  vw?: number;          // The tick's volume weighted average price
+  o?: number;           // The opening tick price for this aggregate window  
+  c?: number;           // The closing tick price for this aggregate window
+  h?: number;           // The highest tick price for this aggregate window
+  l?: number;           // The lowest tick price for this aggregate window
+  a?: number;           // Today's volume weighted average price
+  z?: number;           // The average trade size for this aggregate window
+  s?: number;           // The start timestamp of this aggregate window in Unix Milliseconds
+  e?: number;           // The end timestamp of this aggregate window in Unix Milliseconds
+  otc?: boolean;        // Whether or not this aggregate is for an OTC ticker
+  
+  // Legacy attributes (keeping for compatibility)
   p?: number;
-  s?: number;
   t?: number;
-  c?: number;
-  v?: number;
-  o?: number;
-  op?: number;
-  h?: number;
-  l?: number;
-  vw?: number;
   n?: number;
-  bp?: number;
-  bs?: number;
-  ap?: number;
-  as?: number;
+  
+  // Quote attributes
+  bp?: number;          // Bid price
+  bs?: number;          // Bid size
+  ap?: number;          // Ask price
+  as?: number;          // Ask size
+  
+  // Status attributes
   status?: string;
   message?: string;
 }
@@ -361,7 +374,14 @@ export class EnhancedPolygonScanner {
   // FIXED: Proper aggregate processing with correct volume calculation
   private processAggregateData(ticker: string, message: WebSocketMessage, isMinute: boolean) {
     const existing = this.marketMetrics.get(ticker);
+
+    const todaysVolume = message.av || message.v || 0; // Use today's accumulated volume if available
     
+    if (todaysVolume === 0) {
+      console.warn(`⚠️ No volume data for ${ticker}`, message);
+      return;
+    }
+
     // FIXED: Proper average volume calculation
     let averageVolume = existing?.averageVolume || 1000000; // Default 1M
     
@@ -387,7 +407,7 @@ export class EnhancedPolygonScanner {
     const aggregate: MarketMetrics = {
       ticker,
       price: message.c!,
-      volume: message.v!,
+      volume: todaysVolume!,
       volumeRatio: properVolumeRatio, // FIXED: Now calculated properly
       priceChangePercent: ((message.c! - message.op!) / message.op!) * 100,
       dayOpen: message.op!,
@@ -844,44 +864,6 @@ export class EnhancedPolygonScanner {
     this.lastVolumeAlertTime.clear();
     this.lastQuoteUpdate.clear();
     this.newsCheckThrottle.clear();
-  }
-
-  // Debug method to test SRFM-like stocks
-  public testSRFMCalculation() {
-    console.log('🧪 Testing SRFM-like calculation:');
-    
-    const testMetrics: MarketMetrics = {
-      ticker: 'TEST',
-      price: 4.95,
-      volume: 37430000,        // 37.43M current volume
-      volumeRatio: 22.54,      // 37.43M / 1.66M = 22.54x
-      priceChangePercent: 10.0, // 10% change
-      dayOpen: 4.50,
-      dayHigh: 5.20,
-      dayLow: 4.40,
-      vwap: 4.85,
-      timestamp: Date.now(),
-      trades: 5000,
-      candlestickData: [],
-      averageVolume: 1660000,  // 1.66M average
-      lastUpdate: Date.now()
-    };
-    
-    const testFloat = 19280000; // 19.28M float
-    const testNews = true;      // Has news catalyst
-    
-    const score = this.calculateCompleteBuyScore(testMetrics, testFloat, testNews);
-    
-    console.log(`📊 SRFM Test Results:
-      RelVol: ${testMetrics.volumeRatio}x (Target: 5x+) = ${((testMetrics.volumeRatio / 5) * 100 * 0.30).toFixed(1)} pts
-      Change: ${testMetrics.priceChangePercent}% (Target: 10%+) = ${((testMetrics.priceChangePercent / 10) * 100 * 0.25).toFixed(1)} pts  
-      Float: ${(testFloat/1000000).toFixed(1)}M (Target: <20M) = ${((100 - (testFloat / 20000000) * 100) * 0.20).toFixed(1)} pts
-      Price: $${testMetrics.price} (Target: $2-$20) = ${(100 * 0.10).toFixed(1)} pts
-      News: ${testNews ? 'YES' : 'NO'} = ${(testNews ? 100 * 0.10 : 0).toFixed(1)} pts
-      Volume Surge: ${testMetrics.volumeRatio > 5 ? 'YES' : 'NO'} = ${(testMetrics.volumeRatio > 5 ? 2 : 0).toFixed(1)} pts
-      TOTAL SCORE: ${score}`);
-      
-    return score;
   }
 }
 
