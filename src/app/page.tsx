@@ -1,7 +1,7 @@
-// src/app/page.tsx
+// src/app/page.tsx - Enhanced with debug info (hydration-safe)
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/scanner/Header';
 import StatusBar from './components/scanner/StatusBar';
 import Watchlist from './components/scanner/Watchlist';
@@ -13,6 +13,14 @@ export default function EnhancedScannerPage() {
   
   // NEW: State for selected stock for L2 display
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
+  
+  // FIXED: Client-side flag to prevent hydration issues
+  const [isClientSide, setIsClientSide] = useState(false);
+
+  // FIXED: Set client-side flag after hydration
+  useEffect(() => {
+    setIsClientSide(true);
+  }, []);
 
   // NEW: Handler for L2 button clicks
   const handleShowLevel2 = (ticker: string) => {
@@ -40,14 +48,30 @@ export default function EnhancedScannerPage() {
         testAlert={scanner.testAlert}
       />
       
+      {/* Debug Info Bar - Shows real-time status (client-side only) */}
+      {isClientSide && process.env.NODE_ENV === 'development' && (
+        <div className="bg-slate-900/80 border-b border-slate-700 px-4 py-2">
+          <div className="max-w-7xl mx-auto flex justify-between items-center text-xs text-slate-400">
+            <span>🔧 Debug Mode</span>
+            <div className="flex gap-4">
+              <span>Render Key: {(scanner as any).renderKey || 'N/A'}</span>
+              <span>Stocks: {scanner.stocks.length}</span>
+              <span>Last Update: {scanner.lastUpdate}</span>
+              <span>WS: {scanner.wsConnected ? '✅' : '❌'}</span>
+              <span>Scanning: {scanner.isScanning ? '🔄' : '⏸️'}</span>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Main Content Grid */}
       <main className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
-        {/* Enhanced Watchlist */}
+        {/* Enhanced Real-Time Watchlist */}
         <Watchlist 
           stocks={scanner.stocks} 
           isLoading={scanner.isScanning && scanner.stocks.length === 0 && !scanner.wsConnected}
           clearStocks={scanner.clearStocks}
-          onShowLevel2={handleShowLevel2} // NEW: Pass L2 handler
+          onShowLevel2={handleShowLevel2}
         />
         
         {/* Enhanced Info Panels */}
@@ -55,11 +79,10 @@ export default function EnhancedScannerPage() {
           alerts={scanner.alerts}
           level2Data={scanner.level2Data}
           patterns={scanner.patterns}
-          selectedStock={selectedStock} // NEW: Pass selected stock
+          selectedStock={selectedStock}
           clearAlerts={scanner.clearAlerts}
           deleteAlert={scanner.deleteAlert}
           clearPatterns={scanner.clearPatterns}
-          // REMOVED: clearLevel2Data - no longer needed
         />
       </main>
       
@@ -73,28 +96,53 @@ export default function EnhancedScannerPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
             <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-green-400 font-bold mb-1">📊 Relative Volume (30%)</div>
-              <div className="text-slate-300">Target: <span className="text-green-400">5x+</span></div>
-              <div className="text-slate-400 text-xs">Higher volume indicates increased interest</div>
+              <h4 className="text-cyan-400 font-semibold mb-2">📊 Volume Analysis (30%)</h4>
+              <ul className="text-slate-300 space-y-1">
+                <li>• Relative Volume: 2x+ (was 5x+)</li>
+                <li>• Above Average Volume</li>
+                <li>• Volume Surge Detection</li>
+                <li>• Institutional Flow</li>
+              </ul>
             </div>
             
             <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-blue-400 font-bold mb-1">📈 Price Change (25%)</div>
-              <div className="text-slate-300">Target: <span className="text-green-400">10%+</span></div>
-              <div className="text-slate-400 text-xs">Strong momentum signals</div>
+              <h4 className="text-green-400 font-semibold mb-2">💰 Price Action (25%)</h4>
+              <ul className="text-slate-300 space-y-1">
+                <li>• Daily Change: 3%+ (was 10%+)</li>
+                <li>• Price Range: $1-$50 (expanded)</li>
+                <li>• Momentum Strength</li>
+                <li>• Breakout Patterns</li>
+              </ul>
             </div>
             
             <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-purple-400 font-bold mb-1">🏢 Float Size (20%)</div>
-              <div className="text-slate-300">Target: <span className="text-green-400">&lt;20M</span></div>
-              <div className="text-slate-400 text-xs">Lower float = higher volatility potential</div>
+              <h4 className="text-purple-400 font-semibold mb-2">🏢 Fundamentals (20%)</h4>
+              <ul className="text-slate-300 space-y-1">
+                <li>• Float: Under 50M (was 20M)</li>
+                <li>• Market Liquidity</li>
+                <li>• Share Structure</li>
+                <li>• Trading Range</li>
+              </ul>
             </div>
             
             <div className="bg-slate-800/50 rounded-lg p-3">
-              <div className="text-amber-400 font-bold mb-1">💰 Price Range (15%)</div>
-              <div className="text-slate-300">Target: <span className="text-green-400">$2-$20</span></div>
-              <div className="text-slate-400 text-xs">Optimal risk/reward balance</div>
+              <h4 className="text-orange-400 font-semibold mb-2">📰 Catalysts (25%)</h4>
+              <ul className="text-slate-300 space-y-1">
+                <li>• News Events</li>
+                <li>• Pattern Recognition</li>
+                <li>• Level 2 Flow</li>
+                <li>• Market Sentiment</li>
+              </ul>
             </div>
+          </div>
+          
+          <div className="text-center mt-4 pt-4 border-t border-slate-700">
+            <p className="text-slate-500 text-xs">
+              ⚡ Real-Time Updates Every 1 Second • 
+              🎯 Scores Update Live • 
+              📊 Volume Alerts Filtered • 
+              🔄 Blinking Price Changes
+            </p>
           </div>
         </div>
       </footer>

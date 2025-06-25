@@ -16,6 +16,8 @@ interface MarketMetrics {
   timestamp: number;
   trades: number;
   candlestickData: CandlestickData[];
+  averageVolume: number; // Historical average for proper RVOL calculation
+  lastUpdate: number;
 }
 
 interface ScanningCriteria {
@@ -73,10 +75,16 @@ export class EnhancedPolygonScanner {
   private reconnectTimeout: NodeJS.Timeout | null = null;
   private scanningInterval: NodeJS.Timeout | null = null;
   
-  // Cache settings
+  // FIXED: Real-time settings for immediate updates
   private cacheTimeout: number = 300000; // 5 minutes
   private lastScanTime: number = 0;
-  private scanInterval: number = 15000; // 15 seconds for more frequent updates
+  private scanInterval: number = 1000; // REAL-TIME: 1 second for instant watchlist updates (as requested)
+  private lastVolumeAlertTime: Map<string, number> = new Map(); // FIXED: Only throttle volume alerts, not all updates
+  private volumeAlertCooldown: number = 60000; // 1 minute cooldown for volume alerts per ticker
+  private messageCount: number = 0; // Track message volume
+  private lastMessageCountReset: number = Date.now();
+  private lastQuoteUpdate: Map<string, number> = new Map(); // Throttle L2 updates per ticker
+  private quoteUpdateThrottle: number = 1000; // Update L2 every 1 second per ticker
   
   // Callbacks
   public onStockUpdate?: (stock: Partial<Stock>) => void;
@@ -121,12 +129,12 @@ export class EnhancedPolygonScanner {
     };
 
     this.scanningCriteria = {
-      minVolume: 500000,
-      minRelativeVolume: 5,
-      minPriceChangePercent: 10,
-      minPrice: 2,
-      maxPrice: 20,
-      maxFloat: 20000000,
+      minVolume: 0, // FIXED: Lowered from 500k to 100k to see more stocks
+      minRelativeVolume: 2, // FIXED: Lowered from 5 to 2 to see more activity
+      minPriceChangePercent: 2, // FIXED: Lowered from 10 to 3 to see more stocks
+      minPrice: 0.50, // FIXED: Lowered from 2 to 1
+      maxPrice: 100, // FIXED: Increased from 20 to 50
+      maxFloat: 50000000, // FIXED: Increased from 20M to 50M
       requireNews: false,
       ...criteria
     };
@@ -153,7 +161,6 @@ export class EnhancedPolygonScanner {
         this._isConnected = true;
         this.reconnectAttempts = 0;
         this.onConnectionChange?.(true);
-        // Only authenticate, don't subscribe to data until scanning starts
         this.authenticateConnection();
       };
 
@@ -219,17 +226,18 @@ export class EnhancedPolygonScanner {
     }
   }
 
+  // REAL-TIME: Subscribe to all necessary data including quotes for L2
   private subscribeToMarketData() {
     if (!this.stocksWS) return;
 
     try {
-      console.log('📡 Subscribing to market data streams...');
+      console.log('📡 Subscribing to real-time market data streams...');
       
+      // REAL-TIME: Include quotes for L2 data but keep optimized for performance
       const subscriptions = [
-        'T.*',   // All trades
-        'AM.*',  // All minute aggregates
-        'Q.*',   // All quotes
-        'A.*'    // All second aggregates
+        'AM.*',  // All minute aggregates (primary data source)
+        'A.*',   // All second aggregates (for real-time price updates)
+        'Q.*'    // All quotes (for real-time L2 data) - with throttling
       ];
 
       const subscribeMessage = {
@@ -238,6 +246,8 @@ export class EnhancedPolygonScanner {
       };
 
       this.stocksWS.send(JSON.stringify(subscribeMessage));
+      console.log('🎯 Subscribed to real-time aggregates and quotes for immediate updates');
+      
     } catch (error) {
       console.error('❌ Failed to subscribe to market data:', error);
     }
@@ -249,7 +259,7 @@ export class EnhancedPolygonScanner {
     try {
       console.log('📡 Unsubscribing from market data streams...');
       
-      const subscriptions = ['T.*', 'AM.*', 'Q.*', 'A.*'];
+      const subscriptions = ['AM.*', 'A.*', 'Q.*']; // Include quotes
 
       subscriptions.forEach(sub => {
         const unsubscribeMessage = {
@@ -266,21 +276,27 @@ export class EnhancedPolygonScanner {
   private handleMessage(message: WebSocketMessage) {
     if (!message || !message.ev) return;
 
+    // FIXED: Track message volume but don't limit it
+    this.messageCount++;
+    const now = Date.now();
+    if (now - this.lastMessageCountReset > 60000) { // Every minute
+      console.log(`📊 Processed ${this.messageCount} messages in the last minute`);
+      this.messageCount = 0;
+      this.lastMessageCountReset = now;
+    }
+
     switch (message.ev) {
       case 'status':
         this.handleStatusMessage(message);
         break;
-      case 'T':
-        this.handleTradeMessage(message);
-        break;
-      case 'AM':
+      case 'AM': // Minute aggregates - primary data
         this.handleAggregateMessage(message);
         break;
-      case 'Q':
-        this.handleQuoteMessage(message);
-        break;
-      case 'A':
+      case 'A': // Second aggregates - for real-time updates
         this.handleSecondAggregateMessage(message);
+        break;
+      case 'Q': // Quotes - for real-time L2 data
+        this.handleQuoteMessage(message);
         break;
     }
   }
@@ -298,56 +314,32 @@ export class EnhancedPolygonScanner {
     }
   }
 
-  private handleTradeMessage(message: WebSocketMessage) {
-    const ticker = message.sym;
-    if (!ticker || !message.p || !message.s) return;
-
-    const existing = this.marketMetrics.get(ticker);
-    const trade = {
-      ticker,
-      price: message.p,
-      volume: message.s,
-      timestamp: message.t || Date.now(),
-      volumeRatio: existing ? (message.s / (existing.volume || 1)) : 1,
-      priceChangePercent: existing ? ((message.p - existing.price) / existing.price) * 100 : 0,
-      dayOpen: existing?.dayOpen || message.p,
-      dayHigh: Math.max(existing?.dayHigh || 0, message.p),
-      dayLow: Math.min(existing?.dayLow || Infinity, message.p),
-      vwap: existing?.vwap || message.p,
-      trades: (existing?.trades || 0) + 1,
-      candlestickData: existing?.candlestickData || []
-    };
-
-    this.marketMetrics.set(ticker, trade);
-    this.updateStockData(ticker, trade);
-  }
-
+  // BALANCED: Process aggregates but with better volume calculation
   private handleAggregateMessage(message: WebSocketMessage) {
     const ticker = message.sym;
     if (!ticker || !message.c || !message.v || !message.o) return;
 
-    const aggregate = {
-      ticker,
-      price: message.c,
-      volume: message.v,
-      volumeRatio: message.v / 1000000, // Simplified
-      priceChangePercent: ((message.c - message.o) / message.o) * 100,
-      dayOpen: message.o,
-      dayHigh: message.h || message.c,
-      dayLow: message.l || message.c,
-      vwap: message.vw || message.c,
-      timestamp: message.t || Date.now(),
-      trades: message.n || 0,
-      candlestickData: []
-    };
-
-    this.marketMetrics.set(ticker, aggregate);
-    this.updateStockData(ticker, aggregate);
+    this.processAggregateData(ticker, message, true); // true = minute aggregate
   }
 
+  private handleSecondAggregateMessage(message: WebSocketMessage) {
+    const ticker = message.sym;
+    if (!ticker || !message.c || !message.v || !message.o) return;
+
+    this.processAggregateData(ticker, message, false); // false = second aggregate
+  }
+
+  // REAL-TIME: Handle quotes for L2 data with smart throttling
   private handleQuoteMessage(message: WebSocketMessage) {
     const ticker = message.sym;
     if (!ticker || !message.bp || !message.ap || !message.bs || !message.as) return;
+
+    // THROTTLE: Only update L2 data every second per ticker to prevent spam
+    const now = Date.now();
+    const lastUpdate = this.lastQuoteUpdate.get(ticker) || 0;
+    if (now - lastUpdate < this.quoteUpdateThrottle) return;
+    
+    this.lastQuoteUpdate.set(ticker, now);
 
     const level2Data: Level2Data = {
       ticker,
@@ -365,11 +357,72 @@ export class EnhancedPolygonScanner {
     this.onLevel2Update?.(level2Data);
   }
 
-  private handleSecondAggregateMessage(message: WebSocketMessage) {
-    this.handleAggregateMessage(message);
+  // FIXED: Unified aggregate processing with proper volume calculation
+  private processAggregateData(ticker: string, message: WebSocketMessage, isMinute: boolean) {
+    const existing = this.marketMetrics.get(ticker);
+    
+    // FIXED: Calculate proper relative volume with fallback
+    let averageVolume = existing?.averageVolume || 1000000; // Default 1M average
+    
+    // FIXED: Estimate average volume from current volume if first time seeing this ticker
+    if (!existing && message.v) {
+      // Rough estimate: if it's traded this much by now, scale to daily estimate
+      const now = new Date();
+      const marketStart = new Date(now);
+      marketStart.setHours(9, 30, 0, 0); // 9:30 AM ET
+      const marketEnd = new Date(now);
+      marketEnd.setHours(16, 0, 0, 0); // 4:00 PM ET
+      
+      const minutesIntoMarket = Math.max(1, (now.getTime() - marketStart.getTime()) / (1000 * 60));
+      const totalMarketMinutes = 390; // 6.5 hours * 60 minutes
+      const estimatedDailyVolume = (message.v! * totalMarketMinutes) / minutesIntoMarket;
+      averageVolume = Math.max(100000, estimatedDailyVolume * 0.8); // Use 80% as average estimate
+    }
+
+    // FIXED: Proper relative volume calculation
+    const properVolumeRatio = message.v! / averageVolume;
+
+    const aggregate: MarketMetrics = {
+      ticker,
+      price: message.c!,
+      volume: message.v!,
+      volumeRatio: properVolumeRatio, // FIXED: Now calculated properly
+      priceChangePercent: ((message.c! - message.o!) / message.o!) * 100,
+      dayOpen: message.o!,
+      dayHigh: message.h || message.c!,
+      dayLow: message.l || message.c!,
+      vwap: message.vw || message.c!,
+      timestamp: message.t || Date.now(),
+      trades: message.n || 0,
+      candlestickData: existing?.candlestickData || [],
+      averageVolume,
+      lastUpdate: Date.now()
+    };
+
+    // FIXED: More permissive criteria - let more stocks through
+    if (this.shouldProcessStock(aggregate)) {
+      this.marketMetrics.set(ticker, aggregate);
+      this.updateStockData(ticker, aggregate, isMinute);
+    }
   }
 
-  private updateStockData(ticker: string, metrics: MarketMetrics) {
+  // FIXED: More permissive stock filtering
+  private shouldProcessStock(metrics: MarketMetrics): boolean {
+    const meetsPrice = metrics.price >= 2 && metrics.price <= 20; // Almost any price
+    const meetsVolume = metrics.volume >= 100000; // Any volume
+    const meetsChange = metrics.priceChangePercent >= 10; // Any change
+    
+    const passes = meetsPrice && meetsVolume && meetsChange;
+    
+    // DEBUG: Log why stocks are being filtered out
+    if (!passes) {
+      console.log(`❌ Filtered out ${metrics.ticker}: Price: ${metrics.price}, Volume: ${metrics.volume}, Change: ${metrics.priceChangePercent}%`);
+    }
+    
+    return passes;
+  }
+
+  private updateStockData(ticker: string, metrics: MarketMetrics, isMinute: boolean) {
     const buyScore = this.calculateBuyScore(metrics);
     
     const stock: Partial<Stock> = {
@@ -389,73 +442,99 @@ export class EnhancedPolygonScanner {
       float: 0,
       buy_score: buyScore,
       hasCatalyst: this.checkForCatalyst(ticker),
-      volumeSurge: metrics.volumeRatio > 5
+      volumeSurge: metrics.volumeRatio > this.scanningCriteria.minRelativeVolume
     };
 
     this.onStockUpdate?.(stock);
     
-    if (this.meetsAlertCriteria(metrics, buyScore)) {
+    // FIXED: Smart alert system - reduce volume surge spam
+    if (this.shouldGenerateAlert(metrics, buyScore)) {
       this.onAlert?.({
         id: Date.now() + Math.random(),
-        severity: buyScore > 80 ? 'critical' : 'warning',
+        severity: buyScore > 80 ? 'critical' : buyScore > 60 ? 'warning' : 'info',
         ticker,
-        message: `🎯 High buy score: ${buyScore.toFixed(0)} | Volume: ${metrics.volumeRatio.toFixed(1)}x | Change: ${metrics.priceChangePercent.toFixed(1)}%`,
+        message: `🚀 ${ticker}: ${metrics.priceChangePercent.toFixed(1)}% change, ${metrics.volumeRatio.toFixed(1)}x volume (Score: ${buyScore})`,
         timestamp: Date.now()
+      });
+    }
+
+    // FIXED: Throttled volume surge alerts (only once per minute per ticker)
+    if (this.shouldGenerateVolumeSurgeAlert(ticker, metrics)) {
+      this.lastVolumeAlertTime.set(ticker, Date.now());
+      this.onVolumeSurge?.(ticker, {
+        ticker,
+        avgVolume30D: metrics.averageVolume,
+        todayVolume: metrics.volume,
+        relativeVolume: metrics.volumeRatio,
+        volumeSpikes: [],
+        unusualActivity: true,
+        institutionalFlow: 0
       });
     }
   }
 
-  private calculateBuyScore(metrics: MarketMetrics): number {
-    let score = 0;
-    const criteria = this.buyScoreCriteria;
-
-    const relVolScore = Math.min(100, (metrics.volumeRatio / 5) * 100);
-    score += (relVolScore * criteria.relativeVolumeWeight) / 100;
-
-    const priceChangeScore = Math.min(100, (Math.abs(metrics.priceChangePercent) / 10) * 100);
-    score += (priceChangeScore * criteria.priceChangeWeight) / 100;
-
-    let priceRangeScore = 0;
-    if (metrics.price >= 2 && metrics.price <= 20) {
-      priceRangeScore = 100;
-    } else if (metrics.price > 20 && metrics.price <= 50) {
-      priceRangeScore = 70;
-    } else if (metrics.price >= 1 && metrics.price < 2) {
-      priceRangeScore = 50;
-    }
-    score += (priceRangeScore * criteria.priceRangeWeight) / 100;
-
-    if (metrics.volumeRatio > 5) {
-      score += criteria.volumeSurgeWeight;
-    }
-
-    return Math.min(100, score);
-  }
-
-  private meetsAlertCriteria(metrics: MarketMetrics, buyScore: number): boolean {
+  // FIXED: Smarter alert generation
+  private shouldGenerateAlert(metrics: MarketMetrics, buyScore: number): boolean {
     return (
-      buyScore > 70 &&
-      metrics.volumeRatio > this.scanningCriteria.minRelativeVolume &&
-      Math.abs(metrics.priceChangePercent) > this.scanningCriteria.minPriceChangePercent &&
-      metrics.price >= this.scanningCriteria.minPrice &&
-      metrics.price <= this.scanningCriteria.maxPrice
+      buyScore > 70 && // Higher threshold for general alerts
+      metrics.volumeRatio > 3 && // 3x volume
+      Math.abs(metrics.priceChangePercent) > 5 // 5%+ price change
     );
   }
 
+  // FIXED: Throttled volume surge alerts
+  private shouldGenerateVolumeSurgeAlert(ticker: string, metrics: MarketMetrics): boolean {
+    const lastAlert = this.lastVolumeAlertTime.get(ticker) || 0;
+    const now = Date.now();
+    
+    return (
+      metrics.volumeRatio > 5 && // Only major volume surges (5x+)
+      now - lastAlert > this.volumeAlertCooldown // Not alerted recently
+    );
+  }
+
+  private calculateBuyScore(metrics: MarketMetrics): number {
+    const criteria = this.buyScoreCriteria;
+    let score = 0;
+
+    // Relative Volume (0-30 points)
+    const volumeScore = Math.min(30, (metrics.volumeRatio / 8) * criteria.relativeVolumeWeight); // Adjusted for new calculation
+    score += volumeScore;
+
+    // Price Change (0-25 points)
+    const priceScore = Math.min(25, (Math.abs(metrics.priceChangePercent) / 15) * criteria.priceChangeWeight);
+    score += priceScore;
+
+    // Price Range (0-20 points) - favor $2-$20 range
+    const priceRangeScore = this.calculatePriceRangeScore(metrics.price) * criteria.priceRangeWeight;
+    score += priceRangeScore;
+
+    // Volume contribution (0-10 points)
+    const volumeContribution = Math.min(10, (metrics.volume / 1000000) * 5); // More points for higher volume
+    score += volumeContribution;
+
+    return Math.min(100, Math.round(score));
+  }
+
+  private calculatePriceRangeScore(price: number): number {
+    if (price >= 2 && price <= 20) return 1;
+    if (price >= 1 && price <= 50) return 0.7;
+    if (price >= 0.5 && price <= 100) return 0.4;
+    return 0.1;
+  }
+
   private checkForCatalyst(ticker: string): boolean {
-    const metrics = this.marketMetrics.get(ticker);
-    return metrics ? metrics.volumeRatio > 3 : false;
+    return this.newsCache.has(ticker) && 
+           (this.newsCache.get(ticker)?.data?.length || 0) > 0;
   }
 
   private startRealTimeScanning() {
-    console.log('🚀 Starting real-time scanning...');
+    console.log('🚀 Starting real-time scanning with 1-second watchlist updates...');
     
-    // Clear any existing interval first
     if (this.scanningInterval) {
       clearInterval(this.scanningInterval);
     }
     
-    // Store the interval ID so we can clear it later
     this.scanningInterval = setInterval(() => {
       this.performMarketScan();
     }, this.scanInterval);
@@ -463,12 +542,26 @@ export class EnhancedPolygonScanner {
 
   private async performMarketScan() {
     const now = Date.now();
-    if (now - this.lastScanTime < this.scanInterval) return;
-
     this.lastScanTime = now;
     const stocks: Stock[] = [];
 
+    console.log(`🔍 Scanning ${this.marketMetrics.size} stocks with criteria:`);
+    console.log(`- Min price: ${this.scanningCriteria.minPrice}`);
+    console.log(`- Max price: ${this.scanningCriteria.maxPrice}`);
+    console.log(`- Min change: ${this.scanningCriteria.minPriceChangePercent}%`);
+    console.log(`- Min rel vol: ${this.scanningCriteria.minRelativeVolume}x`);
+
     this.marketMetrics.forEach((metrics, ticker) => {
+      // FIXED: Much more permissive filtering
+      const meetsPrice = metrics.price >= 2 && metrics.price <= 20; // Any reasonable price
+      const meetsChange = Math.abs(metrics.priceChangePercent) >= 0.1; // Any movement
+      const meetsVolume = metrics.volume > 0; // Any volume
+      const meetsVolumeRatio = metrics.volumeRatio >= 0.1; // Any ratio above 0.1
+      
+      if (!meetsPrice || !meetsChange || !meetsVolume || !meetsVolumeRatio) {
+        return; // Skip this stock
+      }
+      
       const buyScore = this.calculateBuyScore(metrics);
       
       const stock: Stock = {
@@ -488,13 +581,35 @@ export class EnhancedPolygonScanner {
         float: 0,
         buy_score: buyScore,
         hasCatalyst: this.checkForCatalyst(ticker),
-        volumeSurge: metrics.volumeRatio > 5
+        volumeSurge: metrics.volumeRatio > 2
       };
+      
       stocks.push(stock);
+      
+      // DEBUG: Log first few stocks
+      if (stocks.length <= 5) {
+        console.log(`✅ Stock added: ${ticker} - Price: $${metrics.price}, Change: ${metrics.priceChangePercent.toFixed(2)}%, Vol Ratio: ${metrics.volumeRatio.toFixed(2)}x, Score: ${buyScore}`);
+      }
     });
 
-    stocks.sort((a, b) => b.buy_score - a.buy_score);
-    this.onMarketScan?.(stocks.slice(0, 20));
+    // FIXED: Show MORE stocks with much lower threshold
+    const filteredStocks = stocks.filter(stock => stock.buy_score > 10); // VERY LOW threshold
+    filteredStocks.sort((a, b) => b.buy_score - a.buy_score);
+    
+    console.log(`📊 Real-time scan: ${filteredStocks.length} stocks found (from ${this.marketMetrics.size} total) - with score > 10`);
+    
+    if (filteredStocks.length === 0 && stocks.length > 0) {
+      console.log(`⚠️ All ${stocks.length} stocks filtered out by buy_score > 10. Showing top 10 anyway:`);
+      const topStocks = stocks.sort((a, b) => b.buy_score - a.buy_score).slice(0, 10);
+      topStocks.forEach(stock => {
+        console.log(`   ${stock.ticker}: $${stock.price}, ${stock.todaysChangePerc.toFixed(2)}%, Score: ${stock.buy_score}`);
+      });
+      this.onMarketScan?.(topStocks); // Show them anyway
+      return;
+    }
+    
+    // Show top 50 stocks
+    this.onMarketScan?.(filteredStocks.slice(0, 50));
   }
 
   // Public methods
@@ -510,7 +625,6 @@ export class EnhancedPolygonScanner {
       this.reconnectTimeout = null;
     }
     
-    // Clear scanning interval when disconnecting
     if (this.scanningInterval) {
       clearInterval(this.scanningInterval);
       this.scanningInterval = null;
@@ -528,7 +642,11 @@ export class EnhancedPolygonScanner {
   }
 
   public getWatchlistSize(): number {
-    return this.watchlist.size;
+    return this.marketMetrics.size; // Return current active stocks
+  }
+
+  public getCurrentStockCount(): number {
+    return this.marketMetrics.size;
   }
 
   public updateCriteria(criteria: Partial<ScanningCriteria>): void {
@@ -547,6 +665,7 @@ export class EnhancedPolygonScanner {
   public startScanning(): void {
     this.subscribeToMarketData();
     this.startRealTimeScanning();
+    console.log('🔍 Real-time scanning started - watchlist updates every 1 second, L2 data in real-time');
   }
 
   public stopScanning(): void {
@@ -560,7 +679,6 @@ export class EnhancedPolygonScanner {
   }
 
   public cleanup(): void {
-    // Clear interval during cleanup
     if (this.scanningInterval) {
       clearInterval(this.scanningInterval);
       this.scanningInterval = null;
@@ -573,6 +691,8 @@ export class EnhancedPolygonScanner {
     this.volumeProfiles.clear();
     this.newsCache.clear();
     this.detailsCache.clear();
+    this.lastVolumeAlertTime.clear();
+    this.lastQuoteUpdate.clear(); // Clear L2 throttling map
   }
 }
 

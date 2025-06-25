@@ -1,4 +1,4 @@
-// src/app/hooks/useEnhancedPolygonScanner.ts
+// src/app/hooks/useEnhancedPolygonScanner.ts - FIXED VERSION
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Stock, Alert, Level2Data, DetectedPattern, VolumeProfile } from '../lib/types';
 import { EnhancedPolygonScanner, getEnhancedPolygonScanner } from '../lib/enhanced-polygon-scanner';
@@ -44,7 +44,7 @@ const useEnhancedPolygonScanner = () => {
   const level2Map = useRef<Map<string, Level2Data>>(new Map());
   const patternMap = useRef<Map<string, DetectedPattern[]>>(new Map());
 
-  // Helper functions
+  // Helper functions - FIXED: Stable references
   const addAlert = useCallback((severity: Alert['severity'], ticker: string, message: string) => {
     const alert: Alert = {
       id: Date.now() + Math.random(),
@@ -56,13 +56,6 @@ const useEnhancedPolygonScanner = () => {
     
     setAlerts(prev => [alert, ...prev].slice(0, 100));
     addAlertToDB(alert);
-  }, []);
-
-  const updateDisplayedStocks = useCallback(() => {
-    const stockArray = Array.from(stockDataMap.current.values())
-      .sort((a, b) => b.buy_score - a.buy_score)
-      .slice(0, 20);
-    setStocks(stockArray);
   }, []);
 
   const updateLevel2Display = useCallback(() => {
@@ -95,22 +88,29 @@ const useEnhancedPolygonScanner = () => {
     }
   }, [addAlert]);
 
-  // Initialize scanner (client-side only)
+  // Initialize scanner (client-side only) - FIXED VERSION
   useEffect(() => {
     // Prevent server-side execution
     if (typeof window === 'undefined') return;
     
     const apiKey = process.env.NEXT_PUBLIC_POLYGON_API_KEY;
     if (!apiKey) {
-      addAlert('critical', 'SYSTEM', '❌ Polygon API key not configured in environment variables');
+      const alertFn = (severity: Alert['severity'], ticker: string, message: string) => {
+        const alert: Alert = {
+          id: Date.now() + Math.random(),
+          severity,
+          ticker,
+          message,
+          timestamp: Date.now()
+        };
+        setAlerts(prev => [alert, ...prev].slice(0, 100));
+        addAlertToDB(alert);
+      };
+      alertFn('critical', 'SYSTEM', '❌ Polygon API key not configured in environment variables');
       return;
     }
 
-    if (!apiKey.startsWith('')) {
-      addAlert('warning', 'SYSTEM', '⚠️ Please ensure your Polygon API key is valid');
-    }
-
-    // Load alerts BEFORE setting up scanner callbacks
+    // Load alerts
     const initDB = async () => {
       await cleanupOldAlerts();
       const loadedAlerts = await loadAlertsFromDB();
@@ -121,11 +121,53 @@ const useEnhancedPolygonScanner = () => {
     };
     initDB();
 
+    // Local alert function to avoid dependency issues
+    const localAddAlert = (severity: Alert['severity'], ticker: string, message: string) => {
+      const alert: Alert = {
+        id: Date.now() + Math.random(),
+        severity,
+        ticker,
+        message,
+        timestamp: Date.now()
+      };
+      setAlerts(prev => [alert, ...prev].slice(0, 100));
+      addAlertToDB(alert);
+    };
+
+    // Local check alerts function
+    const localCheckAlerts = (updated: Stock, existing: Stock) => {
+      if (updated.buy_score > 80 && existing.buy_score <= 80) {
+        localAddAlert('critical', updated.ticker, `🎯 HIGH BUY SCORE: ${updated.buy_score.toFixed(0)}`);
+      }
+      if (updated.relVol > 10 && existing.relVol <= 10) {
+        localAddAlert('warning', updated.ticker, `📈 VOLUME SURGE: ${updated.relVol.toFixed(1)}x average`);
+      }
+      if (Math.abs(updated.todaysChangePerc) > 20 && Math.abs(existing.todaysChangePerc) <= 20) {
+        localAddAlert('warning', updated.ticker, `🚀 PRICE BREAKOUT: ${updated.todaysChangePerc > 0 ? '+' : ''}${updated.todaysChangePerc.toFixed(1)}%`);
+      }
+    };
+
     try {
-      console.log('🚀 Initializing Enhanced Polygon Scanner (All Features Enabled)...');
+      console.log('🚀 Initializing Enhanced Polygon Scanner...');
       scanner.current = getEnhancedPolygonScanner(apiKey);
       
-      // Set up enhanced callbacks AFTER loading alerts
+      // FIXED: Use onMarketScan for bulk updates (primary callback)
+      scanner.current.onMarketScan = (stocksList: Stock[]) => {
+        console.log(`📊 Market scan: ${stocksList.length} stocks`);
+        setStocks(stocksList);
+        
+        // FIXED: Safe timestamp update (only on client)
+        if (typeof window !== 'undefined') {
+          setLastUpdate(new Date().toLocaleTimeString());
+        }
+        
+        // Update internal map
+        stocksList.forEach(stock => {
+          stockDataMap.current.set(stock.ticker, stock);
+        });
+      };
+      
+      // Individual stock updates for alerts (secondary callback)
       scanner.current.onStockUpdate = (update: Partial<Stock>) => {
         if (!update.ticker) return;
         
@@ -145,22 +187,22 @@ const useEnhancedPolygonScanner = () => {
           todaysChange: update.todaysChange || existing?.todaysChange || 0,
         };
         
+        // Check for alerts if this is an update to an existing stock
         if (existing) {
-          checkAlerts(updatedStock, existing);
+          localCheckAlerts(updatedStock, existing);
         }
         
         stockDataMap.current.set(update.ticker, updatedStock);
-        updateDisplayedStocks();
-        setLastUpdate(new Date().toLocaleTimeString());
       };
 
       scanner.current.onLevel2Update = (data: Level2Data) => {
         level2Map.current.set(data.ticker, data);
-        updateLevel2Display();
+        const level2Array = Array.from(level2Map.current.values());
+        setLevel2Data(level2Array);
       };
 
       scanner.current.onAlert = (alert: Alert) => {
-        addAlert(alert.severity, alert.ticker, alert.message);
+        localAddAlert(alert.severity, alert.ticker, alert.message);
       };
 
       scanner.current.onConnectionChange = (connected: boolean) => {
@@ -175,13 +217,18 @@ const useEnhancedPolygonScanner = () => {
         const patterns = patternMap.current.get(ticker) || [];
         patterns.push(pattern);
         patternMap.current.set(ticker, patterns);
-        updatePatternsDisplay();
         
-        addAlert('info', ticker, `🎯 Pattern detected: ${pattern.name}`);
+        const patternsObj: { [ticker: string]: string[] } = {};
+        patternMap.current.forEach((patterns, ticker) => {
+          patternsObj[ticker] = patterns.map(pattern => pattern.name);
+        });
+        setPatterns(patternsObj);
+        
+        localAddAlert('info', ticker, `🎯 Pattern detected: ${pattern.name}`);
       };
 
       scanner.current.onVolumeSurge = (ticker: string, surge: VolumeProfile) => {
-        addAlert('warning', ticker, `📈 Volume surge detected: ${surge.relativeVolume.toFixed(1)}x average volume`);
+        localAddAlert('warning', ticker, `📈 Volume surge detected: ${surge.relativeVolume.toFixed(1)}x average volume`);
       };
 
       // Connect to WebSocket
@@ -190,15 +237,14 @@ const useEnhancedPolygonScanner = () => {
     } catch (error) {
       console.error('Failed to initialize enhanced scanner:', error);
       
-      // Provide specific error messages
       if (error instanceof Error) {
         if (error.message.includes('API key')) {
-          addAlert('critical', 'SYSTEM', '🔑 Invalid or missing Polygon API key - check your .env.local file');
+          localAddAlert('critical', 'SYSTEM', '🔑 Invalid or missing Polygon API key - check your .env.local file');
         } else {
-          addAlert('critical', 'SYSTEM', `🚨 Scanner initialization failed: ${error.message}`);
+          localAddAlert('critical', 'SYSTEM', `🚨 Scanner initialization failed: ${error.message}`);
         }
       } else {
-        addAlert('critical', 'SYSTEM', '🚨 Failed to initialize Enhanced Polygon scanner');
+        localAddAlert('critical', 'SYSTEM', '🚨 Failed to initialize Enhanced Polygon scanner');
       }
       
       return;
@@ -213,14 +259,14 @@ const useEnhancedPolygonScanner = () => {
         scanner.current = null;
       }
     };
-  }, [addAlert, updateDisplayedStocks, updateLevel2Display, updatePatternsDisplay, checkAlerts]);
+  }, []); // FIXED: Empty dependency array - only run once on mount
 
-  // Start scanning - now calls scanner's startScanning method
+  // Start scanning
   const startScanning = useCallback(() => {
     if (scanner.current && !isScanning) {
       setIsScanning(true);
-      scanner.current.startScanning(); // Call the scanner's method to actually start
-      addAlert('info', 'SYSTEM', '🔍 Enhanced scanning started - all advanced features active');
+      scanner.current.startScanning();
+      addAlert('info', 'SYSTEM', '🔍 Real-time scanning started');
       setMarketStatus({ status: 'SCANNING', color: 'text-blue-400' });
     }
   }, [isScanning, addAlert]);
@@ -229,7 +275,7 @@ const useEnhancedPolygonScanner = () => {
   const stopScanning = useCallback(() => {
     if (isScanning && scanner.current) {
       setIsScanning(false);
-      scanner.current.stopScanning(); // Unsubscribe from market data
+      scanner.current.stopScanning();
       addAlert('info', 'SYSTEM', '⏹️ Scanning stopped');
       setMarketStatus({ status: 'STOPPED', color: 'text-yellow-400' });
     }
@@ -241,7 +287,7 @@ const useEnhancedPolygonScanner = () => {
     await deleteAlertFromDB(alertId);
   }, []);
 
-  // Clear functions with database operations
+  // Clear functions
   const clearAlerts = useCallback(async () => {
     setAlerts([]);
     await clearAllAlertsFromDB();
@@ -270,12 +316,11 @@ const useEnhancedPolygonScanner = () => {
     }
   }, [addAlert]);
 
-  // Get API call count
+  // Get metrics
   const getApiCalls = useCallback(() => {
     return 0; // Placeholder
   }, []);
 
-  // Get catalyst count
   const getCatalystCount = useCallback(() => {
     return stocks.filter(stock => stock.hasCatalyst).length;
   }, [stocks]);
@@ -308,7 +353,7 @@ const useEnhancedPolygonScanner = () => {
     clearStocks,
     
     // Utility functions
-    testAlert: () => addAlert('info', 'TEST', 'Test alert generated - all advanced features active'),
+    testAlert: () => addAlert('info', 'TEST', 'Real-time test alert - WebSocket should stay connected'),
   };
 };
 

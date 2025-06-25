@@ -1,4 +1,4 @@
-// src/app/lib/types.ts - Updated without plan system
+// src/app/lib/types.ts - Extended for real-time updates
 export interface Stock {
   ticker: string;
   price: number;
@@ -23,6 +23,10 @@ export interface Stock {
   volumeSurge?: boolean;
   priceAction?: PriceAction;
   orderFlow?: OrderFlowData;
+  
+  // Real-time update keys for forcing React re-renders
+  _renderKey?: string;
+  _updateKey?: number;
 }
 
 export interface DetectedPattern {
