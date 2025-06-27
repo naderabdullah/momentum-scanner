@@ -25,6 +25,32 @@ export default function EnhancedScannerPage() {
     }
   };
 
+  if (!authenticated) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-900">
+        <form
+          onSubmit={handleAuth}
+          className="bg-slate-800 p-6 rounded-lg shadow-lg w-80"
+        >
+          <h2 className="text-white text-xl mb-4 text-center">Enter Password</h2>
+          <input
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            className="w-full px-3 py-2 mb-4 rounded bg-slate-700 text-white placeholder-slate-400"
+            placeholder="Password"
+          />
+          <button
+            type="submit"
+            className="w-full py-2 rounded bg-cyan-500 hover:bg-cyan-600 text-white font-semibold"
+          >
+            Submit
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   // NEW: Handler for L2 button clicks
   const handleShowLevel2 = (ticker: string) => {
     setSelectedStock(ticker);
