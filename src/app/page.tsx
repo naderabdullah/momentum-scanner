@@ -9,10 +9,21 @@ import InfoPanels from './components/scanner/InfoPanels';
 import useEnhancedPolygonScanner from './hooks/useEnhancedPolygonScanner';
 
 export default function EnhancedScannerPage() {
+  const [password, setPassword] = useState('');
+  const [authenticated, setAuthenticated] = useState(false);
   const scanner = useEnhancedPolygonScanner();
-  
-  // NEW: State for selected stock for L2 display
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
+
+  const handleAuth = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Replace 'secret' with your desired password
+    if (password === 'nigganuts') {
+      setAuthenticated(true);
+    } else {
+      alert('Incorrect password');
+      setPassword('');
+    }
+  };
 
   // NEW: Handler for L2 button clicks
   const handleShowLevel2 = (ticker: string) => {
