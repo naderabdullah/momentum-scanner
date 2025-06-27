@@ -36,7 +36,6 @@ const useEnhancedPolygonScanner = () => {
   const [marketStatus, setMarketStatus] = useState<MarketStatus>({ status: 'DISCONNECTED', color: 'text-gray-400' });
   const [lastUpdate, setLastUpdate] = useState<string>('Never');
   const [maxFloat, setMaxFloat] = useState<string>('20M');
-  const [watchlistSize, setWatchlistSize] = useState(0);
 
   // Scanner instance
   const scanner = useRef<EnhancedPolygonScanner | null>(null);
@@ -57,36 +56,6 @@ const useEnhancedPolygonScanner = () => {
     setAlerts(prev => [alert, ...prev].slice(0, 100));
     addAlertToDB(alert);
   }, []);
-
-  const updateLevel2Display = useCallback(() => {
-    const level2Array = Array.from(level2Map.current.values());
-    setLevel2Data(level2Array);
-  }, []);
-
-  const updatePatternsDisplay = useCallback(() => {
-    const patternsObj: { [ticker: string]: string[] } = {};
-    patternMap.current.forEach((patterns, ticker) => {
-      patternsObj[ticker] = patterns.map(pattern => pattern.name);
-    });
-    setPatterns(patternsObj);
-  }, []);
-
-  const checkAlerts = useCallback((updated: Stock, existing: Stock) => {
-    // High buy score alert
-    if (updated.buy_score > 80 && existing.buy_score <= 80) {
-      addAlert('critical', updated.ticker, `🎯 HIGH BUY SCORE: ${updated.buy_score.toFixed(0)}`);
-    }
-    
-    // Volume surge alert
-    if (updated.relVol > 10 && existing.relVol <= 10) {
-      addAlert('warning', updated.ticker, `📈 VOLUME SURGE: ${updated.relVol.toFixed(1)}x average`);
-    }
-    
-    // Price breakout alert
-    if (Math.abs(updated.todaysChangePerc) > 20 && Math.abs(existing.todaysChangePerc) <= 20) {
-      addAlert('warning', updated.ticker, `🚀 PRICE BREAKOUT: ${updated.todaysChangePerc > 0 ? '+' : ''}${updated.todaysChangePerc.toFixed(1)}%`);
-    }
-  }, [addAlert]);
 
   // Initialize scanner (client-side only) - FIXED VERSION
   useEffect(() => {
@@ -336,7 +305,7 @@ const useEnhancedPolygonScanner = () => {
     marketStatus,
     lastUpdate,
     maxFloat,
-    watchlistSize,
+    watchlistSize: stocks.length,
     
     // Enhanced metrics
     apiCalls: getApiCalls(),

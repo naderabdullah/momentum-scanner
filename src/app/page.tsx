@@ -1,7 +1,7 @@
 // src/app/page.tsx - Enhanced with debug info (hydration-safe)
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Header from './components/scanner/Header';
 import StatusBar from './components/scanner/StatusBar';
 import Watchlist from './components/scanner/Watchlist';
@@ -13,14 +13,6 @@ export default function EnhancedScannerPage() {
   
   // NEW: State for selected stock for L2 display
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
-  
-  // FIXED: Client-side flag to prevent hydration issues
-  const [isClientSide, setIsClientSide] = useState(false);
-
-  // FIXED: Set client-side flag after hydration
-  useEffect(() => {
-    setIsClientSide(true);
-  }, []);
 
   // NEW: Handler for L2 button clicks
   const handleShowLevel2 = (ticker: string) => {

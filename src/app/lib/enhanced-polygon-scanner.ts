@@ -71,7 +71,7 @@ interface WebSocketMessage {
 }
 
 export class EnhancedPolygonScanner {
-  private stocksWS: any = null;
+  private stocksWS: WebSocket | null = null;
   private apiKey: string;
   private restClient: unknown = null;
   private _isConnected: boolean = false;
@@ -120,7 +120,7 @@ export class EnhancedPolygonScanner {
 
     try {
       const polygonClient = websocketClient(apiKey, 'wss://socket.polygon.io');
-      this.stocksWS = polygonClient.stocks();
+      this.stocksWS = polygonClient.stocks() as unknown as WebSocket;
       
       import("@polygon.io/client-js").then(({ restClient }) => {
         this.restClient = restClient(apiKey);
@@ -284,7 +284,7 @@ export class EnhancedPolygonScanner {
           action: 'unsubscribe',
           params: sub
         };
-        this.stocksWS.send(JSON.stringify(unsubscribeMessage));
+        this.stocksWS!.send(JSON.stringify(unsubscribeMessage));
       });
     } catch (error) {
       console.error('❌ Failed to unsubscribe from market data:', error);
@@ -335,14 +335,14 @@ export class EnhancedPolygonScanner {
     const ticker = message.sym;
     if (!ticker || !message.c || !message.v || !message.op) return;
 
-    this.processAggregateData(ticker, message, true);
+    this.processAggregateData(ticker, message);
   }
 
   private handleSecondAggregateMessage(message: WebSocketMessage) {
     const ticker = message.sym;
     if (!ticker || !message.c || !message.v || !message.op) return;
 
-    this.processAggregateData(ticker, message, false);
+    this.processAggregateData(ticker, message);
   }
 
   private handleQuoteMessage(message: WebSocketMessage) {
@@ -372,7 +372,7 @@ export class EnhancedPolygonScanner {
   }
 
   // FIXED: Proper aggregate processing with correct volume calculation
-  private processAggregateData(ticker: string, message: WebSocketMessage, isMinute: boolean) {
+  private processAggregateData(ticker: string, message: WebSocketMessage) {
     const existing = this.marketMetrics.get(ticker);
 
     const todaysVolume = message.av || message.v || 0; // Use today's accumulated volume if available
@@ -428,7 +428,7 @@ export class EnhancedPolygonScanner {
 
     if (this.shouldProcessStock(aggregate)) {
       this.marketMetrics.set(ticker, aggregate);
-      this.updateStockData(ticker, aggregate, isMinute);
+      this.updateStockData(ticker, aggregate);
     }
   }
 
@@ -457,7 +457,7 @@ export class EnhancedPolygonScanner {
         console.log(`📊 Float data for ${ticker}: ${(float / 1000000).toFixed(1)}M shares`);
         return float;
       }
-    } catch (error) {
+    } catch {
       console.log(`⚠️ Could not fetch float for ${ticker}, using default`);
     }
 
@@ -471,6 +471,7 @@ export class EnhancedPolygonScanner {
   private async checkForCatalyst(ticker: string): Promise<boolean> {
     const now = Date.now();
     const lastCheck = this.newsCheckThrottle.get(ticker) || 0;
+    const today = new Date().toISOString().split('T')[0];
     
     // Throttle news checks to once per minute per ticker
     if (now - lastCheck < 60000) {
@@ -491,9 +492,10 @@ export class EnhancedPolygonScanner {
       
       if (data.results && data.results.length > 0) {
         // Check if any news is from today
-        const today = new Date().toISOString().split('T')[0];
-        const todaysNews = data.results.filter((news: any) => 
-          news.published_utc && news.published_utc.startsWith(today)
+        type NewsArticle = { published_utc?: string };
+        const results: NewsArticle[] = data.results;
+        const todaysNews = results.filter(news =>
+          news.published_utc?.startsWith(today)
         );
         
         const hasRecentNews = todaysNews.length > 0;
@@ -505,7 +507,7 @@ export class EnhancedPolygonScanner {
         this.newsCache.set(ticker, { hasNews: hasRecentNews, timestamp: now });
         return hasRecentNews;
       }
-    } catch (error) {
+    } catch {
       console.log(`⚠️ Could not fetch news for ${ticker}`);
     }
 
@@ -582,7 +584,7 @@ export class EnhancedPolygonScanner {
   }
 
   // FIXED: Update stock data with async float and news fetching
-  private async updateStockData(ticker: string, metrics: MarketMetrics, isMinute: boolean) {
+  private async updateStockData(ticker: string, metrics: MarketMetrics) {
     // Start async operations
     const floatPromise = this.fetchFloatData(ticker);
     const newsPromise = this.checkForCatalyst(ticker);

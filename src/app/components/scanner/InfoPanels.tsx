@@ -177,7 +177,9 @@ const InfoPanels: React.FC<InfoPanelsProps> = ({
             {!selectedStock && (
               <div className="text-center py-6 text-slate-400 text-sm">
                 <div className="text-slate-400 mb-2">📊 Select a stock to view Level 2 data</div>
-                <div className="text-slate-500 text-xs">Click the "📊 L2" button on any stock in the watchlist</div>
+                <div className="text-slate-500 text-xs">
+                  Click the &quot;📊 L2&quot; button on any stock in the watchlist
+                </div>
               </div>
             )}
 
