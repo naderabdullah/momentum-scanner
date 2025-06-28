@@ -17,7 +17,7 @@ export default function EnhancedScannerPage() {
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
     // Replace 'secret' with your desired password
-    if (password === 'nigganuts') {
+    if (password === 'abdullahsqueeze') {
       setAuthenticated(true);
     } else {
       alert('Incorrect password');
