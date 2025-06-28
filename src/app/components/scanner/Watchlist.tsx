@@ -219,11 +219,6 @@ const Watchlist: React.FC<WatchlistProps> = ({
               <span>⚡</span>
               <span>Real-Time Updates</span>
             </div>
-            {isClientSide && (
-              <div className="text-xs text-slate-500">
-                Update #{forceUpdate}
-              </div>
-            )}
             <button
               onClick={clearStocks}
               className="text-slate-400 hover:text-white text-xs px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded transition-colors"
