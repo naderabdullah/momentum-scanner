@@ -9,8 +9,8 @@ import InfoPanels from './components/scanner/InfoPanels';
 import useEnhancedPolygonScanner from './hooks/useEnhancedPolygonScanner';
 
 export default function EnhancedScannerPage() {
-  const [password, setPassword] = useState('');
-  const [authenticated, setAuthenticated] = useState(false);
+  // const [password, setPassword] = useState('');
+  // const [authenticated, setAuthenticated] = useState(false);
   const scanner = useEnhancedPolygonScanner();
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
 
